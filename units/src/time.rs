@@ -118,15 +118,9 @@ impl<'de> Deserialize<'de> for BlockTime {
 }
 
 #[cfg(feature = "encoding")]
-encoding::encoder_newtype_exact! {
-    /// The encoder for the [`BlockTime`] type.
-    #[derive(Debug, Clone)]
-    pub struct BlockTimeEncoder<'e>(encoding::ArrayEncoder<4>);
-}
-
-#[cfg(feature = "encoding")]
 impl encoding::Encodable for BlockTime {
     type Encoder<'e> = BlockTimeEncoder<'e>;
+
     #[inline]
     fn encoder(&self) -> Self::Encoder<'_> {
         BlockTimeEncoder::new(encoding::ArrayEncoder::without_length_prefix(
@@ -136,12 +130,28 @@ impl encoding::Encodable for BlockTime {
 }
 
 #[cfg(feature = "encoding")]
+impl encoding::Decodable for BlockTime {
+    type Decoder = BlockTimeDecoder;
+
+    #[inline]
+    fn decoder() -> Self::Decoder { BlockTimeDecoder(encoding::ArrayDecoder::<4>::new()) }
+}
+
+#[cfg(feature = "encoding")]
+encoding::encoder_newtype_exact! {
+    /// The encoder for the [`BlockTime`] type.
+    #[derive(Debug, Clone)]
+    pub struct BlockTimeEncoder<'e>(encoding::ArrayEncoder<4>);
+}
+
+#[cfg(feature = "encoding")]
 crate::decoder_newtype! {
     /// The decoder for the [`BlockTime`] type.
     #[derive(Debug, Clone)]
     pub struct BlockTimeDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`BlockTime`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<BlockTime, BlockTimeDecoderError> {
@@ -152,10 +162,9 @@ crate::decoder_newtype! {
 }
 
 #[cfg(feature = "encoding")]
-impl encoding::Decodable for BlockTime {
-    type Decoder = BlockTimeDecoder;
+impl Default for BlockTimeDecoder {
     #[inline]
-    fn decoder() -> Self::Decoder { BlockTimeDecoder(encoding::ArrayDecoder::<4>::new()) }
+    fn default() -> Self { Self::new() }
 }
 
 /// Error types for block times.

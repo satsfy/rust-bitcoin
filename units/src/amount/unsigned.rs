@@ -614,15 +614,9 @@ impl TryFrom<SignedAmount> for Amount {
 }
 
 #[cfg(feature = "encoding")]
-encoding::encoder_newtype_exact! {
-    /// The encoder for the [`Amount`] type.
-    #[derive(Debug, Clone)]
-    pub struct AmountEncoder<'e>(encoding::ArrayEncoder<8>);
-}
-
-#[cfg(feature = "encoding")]
 impl encoding::Encodable for Amount {
     type Encoder<'e> = AmountEncoder<'e>;
+
     #[inline]
     fn encoder(&self) -> Self::Encoder<'_> {
         AmountEncoder::new(encoding::ArrayEncoder::without_length_prefix(
@@ -632,12 +626,28 @@ impl encoding::Encodable for Amount {
 }
 
 #[cfg(feature = "encoding")]
+impl encoding::Decodable for Amount {
+    type Decoder = AmountDecoder;
+
+    #[inline]
+    fn decoder() -> Self::Decoder { AmountDecoder(encoding::ArrayDecoder::<8>::new()) }
+}
+
+#[cfg(feature = "encoding")]
+encoding::encoder_newtype_exact! {
+    /// The encoder for the [`Amount`] type.
+    #[derive(Debug, Clone)]
+    pub struct AmountEncoder<'e>(encoding::ArrayEncoder<8>);
+}
+
+#[cfg(feature = "encoding")]
 crate::decoder_newtype! {
     /// The decoder for the [`Amount`] type.
     #[derive(Debug, Clone)]
     pub struct AmountDecoder(encoding::ArrayDecoder<8>);
 
     /// Constructs a new [`Amount`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn map_push_bytes_err(e: encoding::UnexpectedEofError) -> AmountDecoderError {
@@ -652,10 +662,9 @@ crate::decoder_newtype! {
 }
 
 #[cfg(feature = "encoding")]
-impl encoding::Decodable for Amount {
-    type Decoder = AmountDecoder;
+impl Default for AmountDecoder {
     #[inline]
-    fn decoder() -> Self::Decoder { AmountDecoder(encoding::ArrayDecoder::<8>::new()) }
+    fn default() -> Self { Self::new() }
 }
 
 #[cfg(feature = "arbitrary")]

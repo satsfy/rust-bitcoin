@@ -205,15 +205,9 @@ impl TryFrom<BlockHeight> for absolute::Height {
 }
 
 #[cfg(feature = "encoding")]
-encoding::encoder_newtype_exact! {
-    /// The encoder for the [`BlockHeight`] type.
-    #[derive(Debug, Clone)]
-    pub struct BlockHeightEncoder<'e>(encoding::ArrayEncoder<4>);
-}
-
-#[cfg(feature = "encoding")]
 impl encoding::Encodable for BlockHeight {
     type Encoder<'e> = BlockHeightEncoder<'e>;
+
     #[inline]
     fn encoder(&self) -> Self::Encoder<'_> {
         BlockHeightEncoder::new(encoding::ArrayEncoder::without_length_prefix(
@@ -223,12 +217,28 @@ impl encoding::Encodable for BlockHeight {
 }
 
 #[cfg(feature = "encoding")]
+impl encoding::Decodable for BlockHeight {
+    type Decoder = BlockHeightDecoder;
+
+    #[inline]
+    fn decoder() -> Self::Decoder { BlockHeightDecoder(encoding::ArrayDecoder::<4>::new()) }
+}
+
+#[cfg(feature = "encoding")]
+encoding::encoder_newtype_exact! {
+    /// The encoder for the [`BlockHeight`] type.
+    #[derive(Debug, Clone)]
+    pub struct BlockHeightEncoder<'e>(encoding::ArrayEncoder<4>);
+}
+
+#[cfg(feature = "encoding")]
 crate::decoder_newtype! {
     /// The decoder for the [`BlockHeight`] type.
     #[derive(Debug, Clone)]
     pub struct BlockHeightDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`BlockHeight`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<BlockHeight, BlockHeightDecoderError> {
@@ -239,10 +249,9 @@ crate::decoder_newtype! {
 }
 
 #[cfg(feature = "encoding")]
-impl encoding::Decodable for BlockHeight {
-    type Decoder = BlockHeightDecoder;
+impl Default for BlockHeightDecoder {
     #[inline]
-    fn decoder() -> Self::Decoder { BlockHeightDecoder(encoding::ArrayDecoder::<4>::new()) }
+    fn default() -> Self { Self::new() }
 }
 
 impl_u32_wrapper! {

@@ -314,15 +314,9 @@ impl From<CompactTarget> for Target {
 }
 
 #[cfg(feature = "encoding")]
-encoding::encoder_newtype_exact! {
-    /// The encoder for the [`CompactTarget`] type.
-    #[derive(Debug, Clone)]
-    pub struct CompactTargetEncoder<'e>(encoding::ArrayEncoder<4>);
-}
-
-#[cfg(feature = "encoding")]
 impl encoding::Encodable for CompactTarget {
     type Encoder<'e> = CompactTargetEncoder<'e>;
+
     #[inline]
     fn encoder(&self) -> Self::Encoder<'_> {
         CompactTargetEncoder::new(encoding::ArrayEncoder::without_length_prefix(
@@ -332,12 +326,28 @@ impl encoding::Encodable for CompactTarget {
 }
 
 #[cfg(feature = "encoding")]
+impl encoding::Decodable for CompactTarget {
+    type Decoder = CompactTargetDecoder;
+
+    #[inline]
+    fn decoder() -> Self::Decoder { CompactTargetDecoder(encoding::ArrayDecoder::<4>::new()) }
+}
+
+#[cfg(feature = "encoding")]
+encoding::encoder_newtype_exact! {
+    /// The encoder for the [`CompactTarget`] type.
+    #[derive(Debug, Clone)]
+    pub struct CompactTargetEncoder<'e>(encoding::ArrayEncoder<4>);
+}
+
+#[cfg(feature = "encoding")]
 crate::decoder_newtype! {
     /// The decoder for the [`CompactTarget`] type.
     #[derive(Debug, Clone)]
     pub struct CompactTargetDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`CompactTarget`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<CompactTarget, CompactTargetDecoderError> {
@@ -348,10 +358,9 @@ crate::decoder_newtype! {
 }
 
 #[cfg(feature = "encoding")]
-impl encoding::Decodable for CompactTarget {
-    type Decoder = CompactTargetDecoder;
+impl Default for CompactTargetDecoder {
     #[inline]
-    fn decoder() -> Self::Decoder { CompactTargetDecoder(encoding::ArrayDecoder::<4>::new()) }
+    fn default() -> Self { Self::new() }
 }
 
 /// Error types for proof-of-work related integer types.

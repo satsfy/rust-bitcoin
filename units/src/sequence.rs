@@ -259,15 +259,9 @@ impl fmt::Debug for Sequence {
 parse_int::impl_parse_str_from_int_infallible!(Sequence, u32, from_consensus);
 
 #[cfg(feature = "encoding")]
-encoding::encoder_newtype_exact! {
-    /// The encoder for the [`Sequence`] type.
-    #[derive(Debug, Clone)]
-    pub struct SequenceEncoder<'e>(encoding::ArrayEncoder<4>);
-}
-
-#[cfg(feature = "encoding")]
 impl encoding::Encodable for Sequence {
     type Encoder<'e> = SequenceEncoder<'e>;
+
     #[inline]
     fn encoder(&self) -> Self::Encoder<'_> {
         SequenceEncoder::new(encoding::ArrayEncoder::without_length_prefix(
@@ -277,12 +271,28 @@ impl encoding::Encodable for Sequence {
 }
 
 #[cfg(feature = "encoding")]
+impl encoding::Decodable for Sequence {
+    type Decoder = SequenceDecoder;
+
+    #[inline]
+    fn decoder() -> Self::Decoder { SequenceDecoder(encoding::ArrayDecoder::<4>::new()) }
+}
+
+#[cfg(feature = "encoding")]
+encoding::encoder_newtype_exact! {
+    /// The encoder for the [`Sequence`] type.
+    #[derive(Debug, Clone)]
+    pub struct SequenceEncoder<'e>(encoding::ArrayEncoder<4>);
+}
+
+#[cfg(feature = "encoding")]
 crate::decoder_newtype! {
     /// The decoder for the [`Sequence`] type.
     #[derive(Debug, Clone)]
     pub struct SequenceDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`Sequence`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<Sequence, SequenceDecoderError> {
@@ -293,10 +303,9 @@ crate::decoder_newtype! {
 }
 
 #[cfg(feature = "encoding")]
-impl encoding::Decodable for Sequence {
-    type Decoder = SequenceDecoder;
+impl Default for SequenceDecoder {
     #[inline]
-    fn decoder() -> Self::Decoder { SequenceDecoder(encoding::ArrayDecoder::<4>::new()) }
+    fn default() -> Self { Self::new() }
 }
 
 /// Error types for input sequence numbers.

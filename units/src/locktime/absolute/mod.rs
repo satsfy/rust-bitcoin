@@ -398,13 +398,6 @@ impl LockTime {
 parse_int::impl_parse_str_from_int_infallible!(LockTime, u32, from_consensus);
 
 #[cfg(feature = "encoding")]
-encoding::encoder_newtype_exact! {
-    /// The encoder for the [`LockTime`] type.
-    #[derive(Debug, Clone)]
-    pub struct LockTimeEncoder<'e>(encoding::ArrayEncoder<4>);
-}
-
-#[cfg(feature = "encoding")]
 impl encoding::Encodable for LockTime {
     type Encoder<'e> = LockTimeEncoder<'e>;
     #[inline]
@@ -416,12 +409,28 @@ impl encoding::Encodable for LockTime {
 }
 
 #[cfg(feature = "encoding")]
+impl encoding::Decodable for LockTime {
+    type Decoder = LockTimeDecoder;
+
+    #[inline]
+    fn decoder() -> Self::Decoder { LockTimeDecoder(encoding::ArrayDecoder::<4>::new()) }
+}
+
+#[cfg(feature = "encoding")]
+encoding::encoder_newtype_exact! {
+    /// The encoder for the [`LockTime`] type.
+    #[derive(Debug, Clone)]
+    pub struct LockTimeEncoder<'e>(encoding::ArrayEncoder<4>);
+}
+
+#[cfg(feature = "encoding")]
 crate::decoder_newtype! {
     /// The decoder for the [`LockTime`] type.
     #[derive(Debug, Clone)]
     pub struct LockTimeDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`LockTime`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<LockTime, LockTimeDecoderError> {
@@ -432,10 +441,9 @@ crate::decoder_newtype! {
 }
 
 #[cfg(feature = "encoding")]
-impl encoding::Decodable for LockTime {
-    type Decoder = LockTimeDecoder;
+impl Default for LockTimeDecoder {
     #[inline]
-    fn decoder() -> Self::Decoder { LockTimeDecoder(encoding::ArrayDecoder::<4>::new()) }
+    fn default() -> Self { Self::new() }
 }
 
 impl From<Height> for LockTime {
