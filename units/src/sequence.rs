@@ -292,6 +292,7 @@ crate::decoder_newtype! {
     pub struct SequenceDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`Sequence`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<Sequence, SequenceDecoderError> {

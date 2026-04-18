@@ -647,6 +647,7 @@ crate::decoder_newtype! {
     pub struct AmountDecoder(encoding::ArrayDecoder<8>);
 
     /// Constructs a new [`Amount`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn map_push_bytes_err(e: encoding::UnexpectedEofError) -> AmountDecoderError {

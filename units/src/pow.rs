@@ -336,6 +336,7 @@ crate::decoder_newtype! {
     pub struct CompactTargetDecoder(encoding::ArrayDecoder<4>);
 
     /// Constructs a new [`CompactTarget`] decoder.
+    #[inline]
     pub const fn new() -> Self { Self(encoding::ArrayDecoder::new()) }
 
     fn end(result: Result<[u8; 4], encoding::UnexpectedEofError>) -> Result<CompactTarget, CompactTargetDecoderError> {
