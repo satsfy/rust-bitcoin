@@ -23,7 +23,7 @@ use network::NetworkKind;
 #[doc(no_inline)]
 pub use self::error::{
     DerivationError, IndexOutOfRangeError, InvalidBase58PayloadLengthError,
-    ParseChildNumberError, ParseError,
+    InvalidSeedLengthError, ParseChildNumberError, ParseError,
 };
 
 /// Version bytes for extended public keys on the Bitcoin network.
@@ -582,14 +582,27 @@ impl fmt::Debug for DerivationPath {
 pub type KeySource = (Fingerprint, DerivationPath);
 
 impl Xpriv {
+    /// Minimum seed length in bytes (128 bits).
+    pub const MIN_SEED_LEN: usize = 16;
+
+    /// Maximum seed length in bytes (512 bits).
+    pub const MAX_SEED_LEN: usize = 64;
+
     /// Constructs a new master key from a seed value
     #[allow(clippy::missing_panics_doc)]
-    pub fn new_master(network: impl Into<NetworkKind>, seed: &[u8]) -> Self {
+    pub fn new_master(
+        network: impl Into<NetworkKind>,
+        seed: &[u8],
+    ) -> Result<Self, InvalidSeedLengthError> {
+        if !(MIN_SEED_LEN..=MAX_SEED_LEN).contains(&seed.len()) {
+            return Err(InvalidSeedLengthError { length: seed.len() });
+        }
+
         let mut engine = HmacEngine::<sha512::HashEngine>::new(b"Bitcoin seed");
         engine.input(seed);
         let hmac = engine.finalize();
 
-        Self {
+        Ok(Self {
             network: network.into(),
             depth: 0,
             parent_fingerprint: Fingerprint::default(),
@@ -599,7 +612,7 @@ impl Xpriv {
             )
             .expect("cryptographically unreachable"),
             chain_code: ChainCode::from_hmac(hmac),
-        }
+        })
     }
 
     /// Constructs a new ECDSA compressed private key matching internal secret key representation.
@@ -1213,6 +1226,33 @@ pub mod error {
     impl std::error::Error for InvalidBase58PayloadLengthError {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
     }
+
+    /// Seed passed to `Xpriv::new_master` was outside the range allowed by BIP-0032.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct InvalidSeedLengthError {
+        /// The seed length we got, in bytes.
+        pub(crate) length: usize,
+    }
+
+    impl InvalidSeedLengthError {
+        /// Returns the invalid seed length, in bytes.
+        pub fn invalid_seed_length(&self) -> usize { self.length }
+    }
+
+    impl From<Infallible> for InvalidSeedLengthError {
+        fn from(never: Infallible) -> Self { match never {} }
+    }
+
+    impl fmt::Display for InvalidSeedLengthError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "seed length must be between 16 and 64 bytes inclusive, got: {}", self.length)
+        }
+    }
+
+    #[cfg(feature = "std")]
+    impl std::error::Error for InvalidSeedLengthError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
+    }
 }
 
 #[cfg(feature = "arbitrary")]
@@ -1456,7 +1496,7 @@ mod tests {
         expected_sk: &str,
         expected_pk: &str,
     ) {
-        let mut sk = Xpriv::new_master(network, seed);
+        let mut sk = Xpriv::new_master(network, seed).unwrap();
         let mut pk = Xpub::from_xpriv(&sk);
 
         // Check derivation convenience method for Xpriv
@@ -1770,6 +1810,17 @@ mod tests {
             } else {
                 key.parse::<Xpriv>().unwrap_err();
             }
+        }
+    }
+
+    #[test]
+    fn new_master_rejects_out_of_range_seed() {
+        for len in [0usize, 1, 15, 65, 128, 1024] {
+            let seed = vec![0u8; len];
+            assert_eq!(
+                Xpriv::new_master(NetworkKind::Main, &seed),
+                Err(InvalidSeedLengthError { length: len }),
+            );
         }
     }
 }
