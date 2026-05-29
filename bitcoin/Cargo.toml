@@ -10,6 +10,7 @@ categories = ["cryptography::cryptocurrencies"]
 keywords = [ "crypto", "bitcoin" ]
 readme = "../README.md"
 edition = "2018"
+rust-version = "1.48.0"
 exclude = ["tests", "contrib"]
 
 [features]
@@ -85,3 +86,15 @@ needless_question_mark = "allow" # https://github.com/rust-bitcoin/rust-bitcoin/
 manual_range_contains = "allow" # More readable than clippy's format.
 precedence = "allow"
 legacy_numeric_constants = "allow"
+
+[package.metadata.rbmt.test]
+examples = [
+    "ecdsa-psbt:std secp-recovery bitcoinconsensus",
+    "taproot-psbt:std secp-recovery rand-std bitcoinconsensus",
+]
+exact_features = [
+    ["std", "secp-recovery"],
+    ["std", "secp-recovery", "serde"],
+    ["std", "secp-recovery", "bitcoinconsensus-std", "serde", "base64", "rand"],
+    ["no-std", "secp-recovery"],
+]
