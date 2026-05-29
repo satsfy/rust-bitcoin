@@ -1,61 +1,47 @@
-on:
+---   # rust-bitcoin CI: If you edit this file please update README.md
+on:   # yamllint disable-line rule:truthy
   push:
     branches:
       - 0.31.x
+      - 'test-ci/**'
   pull_request:
 
 name: Continuous integration
+
+permissions: {}
 
 jobs:
   Stable:
     name: Test - stable toolchain
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     steps:
-      - name: Checkout Crate
+      - name: "Checkout repo"
         uses: actions/checkout@v4
-      - name: Checkout Toolchain
-        # https://github.com/dtolnay/rust-toolchain
+      - name: "Select toolchain"
         uses: dtolnay/rust-toolchain@stable
-      - name: Running test script
+      - name: "Set dependencies"
+        run: cp Cargo-recent.lock Cargo.lock
+      - name: "Run test script"
         env:
-          DO_COV: true
           DO_LINT: true
           AS_DEPENDENCY: false
           DO_NO_STD: true
           DO_DOCS: true
           DO_FEATURE_MATRIX: true
-          DO_SCHEMARS_TESTS: true # Currently only used in hashes crate.
-        run: ./contrib/test.sh
-
-  Beta:
-    name: Test - beta toolchain
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-    steps:
-      - name: Checkout Crate
-        uses: actions/checkout@v4
-      - name: Checkout Toolchain
-        uses: dtolnay/rust-toolchain@beta
-      - name: Running test script
-        env:
-          AS_DEPENDENCY: false
-          DO_NO_STD: true
+          DO_SCHEMARS_TESTS: true
         run: ./contrib/test.sh
 
   Nightly:
     name: Test - nightly toolchain
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     steps:
-      - name: Checkout Crate
+      - name: "Checkout repo"
         uses: actions/checkout@v4
-      - name: Checkout Toolchain
+      - name: "Select toolchain"
         uses: dtolnay/rust-toolchain@nightly
-      - name: Running test script
+      - name: "Set dependencies"
+        run: cp Cargo-recent.lock Cargo.lock
+      - name: "Run test script"
         env:
           DO_FMT: false
           DO_BENCH: true
@@ -64,104 +50,131 @@ jobs:
           DO_DOCSRS: true
         run: ./contrib/test.sh
 
-  MSRV:
-    name: Test - 1.48.0 toolchain
+  Lint:
+    name: Lint
     runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v4
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@stable
+      - name: "Set dependencies"
+        run: cp Cargo-recent.lock Cargo.lock
+      - name: "Run clippy"
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+  Check:
+    name: Check (${{ matrix.task }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
+      matrix:
+        task: [docs, docsrs, bench]
     steps:
-      - name: Checkout Crate
-        uses: actions/checkout@v4
-      - name: Checkout Toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          toolchain: "1.48.0"
-      - name: Running test script
-        env:
-          DO_FEATURE_MATRIX: true
-          DO_NO_STD: true
-        run: ./contrib/test.sh
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rbmt
+      - name: "Run ${{ matrix.task }}"
+        run: cargo rbmt ${{ matrix.task }}
+
+  # Non cargo-rbmt jobs manage their toolchain version directly.
+  Prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      nightly_version: ${{ steps.read_toolchain.outputs.nightly_version }}
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: "Read workspace versions"
+        id: read_toolchain
+        run: echo "nightly_version=$(cargo metadata --format-version 1 | jq -r '.metadata.rbmt.toolchains.nightly')" >> $GITHUB_OUTPUT
 
   Arch32bit:
     name: Test 32-bit version
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Crate
+      - name: "Checkout repo"
         uses: actions/checkout@v4
-      - name: Checkout Toolchain
+      - name: "Select toolchain"
         uses: dtolnay/rust-toolchain@stable
-      - name: Add architecture i386
+      - name: "Add architecture i386"
         run: sudo dpkg --add-architecture i386
-      - name: Install i686 gcc
+      - name: "Install i686 gcc"
         run: sudo apt-get update -y && sudo apt-get install -y gcc-multilib
-      - name: Install target
+      - name: "Install target"
         run: rustup target add i686-unknown-linux-gnu
-      - name: Run test on i686
+      - name: "Set dependencies"
+        run: cp Cargo-recent.lock Cargo.lock
+      - name: "Run test on i686"
         run: cargo test --target i686-unknown-linux-gnu
 
   Cross:
-    name: Cross test
+    name: Cross test - stable toolchain
     if: ${{ !github.event.act }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Crate
+      - name: "Checkout repo"
         uses: actions/checkout@v4
-      - name: Checkout Toolchain
+      - name: "Select toolchain"
         uses: dtolnay/rust-toolchain@stable
-      - name: Install target
+      - name: "Install target"
         run: rustup target add s390x-unknown-linux-gnu
-      - name: install cross
+      - name: "Install cross"
         run: cargo install cross --locked
-      - name: run cross test
+      - name: "Set dependencies"
+        run: cp Cargo-recent.lock Cargo.lock
+      - name: "Run cross test"
         run: cross test --target s390x-unknown-linux-gnu
 
   Embedded:
+    name: Embedded - nightly toolchain
+    needs: Prepare
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "-C link-arg=-Tlink.x"
       CARGO_TARGET_THUMBV7M_NONE_EABI_RUNNER: "qemu-system-arm -cpu cortex-m3 -machine mps2-an385 -nographic -semihosting-config enable=on,target=native -kernel"
     steps:
-      - name: Checkout
+      - name: "Checkout repo"
         uses: actions/checkout@v4
-      - name: Set up QEMU
+      - name: "Set up QEMU"
         run: sudo apt update && sudo apt install -y qemu-system-arm gcc-arm-none-eabi
-      - name: Checkout Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: ${{ needs.Prepare.outputs.nightly_version }}
           targets: thumbv7m-none-eabi
-      - name: Install src
+      - name: "Install rust-src"
         run: rustup component add rust-src
-      - name: Run bitcoin/embedded
+      - name: "Run bitcoin/embedded"
         run: cd bitcoin/embedded && cargo run --target thumbv7m-none-eabi
-      - name: Run hashes/embedded no alloc
+      - name: "Run hashes/embedded no alloc"
         run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi
-      - name: Run hashes/embedded with alloc
+      - name: "Run hashes/embedded with alloc"
         run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi --features=alloc
 
-  ASAN:
-    name: Address sanitizer     # hashes crate only.
+  ASAN:                         # hashes crate only.
+    name: ASAN - nightly toolchain
+    needs: Prepare
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Crate
+      - name: "Checkout repo"
         uses: actions/checkout@v4
-      - name: Checkout Toolchain
-        uses: dtolnay/rust-toolchain@nightly
-      - name: Install src
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ needs.Prepare.outputs.nightly_version }}
+      - name: "Install rust-src"
         run: rustup component add rust-src
-      - name: Running address sanitizer
+      - name: "Set dependencies"
+        run: cp Cargo-recent.lock Cargo.lock
+      - name: "Run address sanitizer"
         env:
           DO_ASAN: true
-        run: cd hashes && ./contrib/test.sh
-
-  WASM:
-    name: WebAssembly Build # hashes crate only.
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Crate
-        uses: actions/checkout@v4
-      - name: Checkout Toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Running WASM build
-        env:
-          DO_WASM: true
         run: cd hashes && ./contrib/test.sh

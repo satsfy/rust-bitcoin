@@ -33,3 +33,6 @@ path = "../../hashes"
 
 [patch.crates-io.bitcoin-internals]
 path = "../../internals"
+
+[patch.crates-io.core2]
+path = "../../vendor/core2"

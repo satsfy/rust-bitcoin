@@ -33,3 +33,6 @@ lto = true # better optimizations
 
 [patch.crates-io.bitcoin-internals]
 path = "../../internals"
+
+[patch.crates-io.core2]
+path = "../../vendor/core2"
