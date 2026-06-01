@@ -42,13 +42,19 @@ do
     done
     if [ "$dep" = recent ];
     then
-        # We always test committed dependencies but we want to warn if they could've been updated
-        cargo update
-        if diff Cargo-recent.lock Cargo.lock;
+        # We always test committed dependencies but we want to warn if they could've been updated.
+        # All core2 versions are yanked from crates.io, so a full `cargo update` cannot resolve;
+        # treat that as a warning rather than failing CI.
+        if cargo update;
         then
-            echo Dependencies are up to date
+            if diff Cargo-recent.lock Cargo.lock;
+            then
+                echo Dependencies are up to date
+            else
+                echo "::warning file=Cargo-recent.lock::Dependencies could be updated"
+            fi
         else
-            echo "::warning file=Cargo-recent.lock::Dependencies could be updated"
+            echo "::warning file=Cargo-recent.lock::Skipped update check, cargo update failed (likely a yanked dependency)"
         fi
     fi
 done
