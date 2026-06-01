@@ -10,6 +10,7 @@ categories = ["cryptography::cryptocurrencies"]
 keywords = ["internal"]
 readme = "README.md"
 edition = "2018"
+rust-version = "1.48.0"
 exclude = ["tests", "contrib"]
 
 [features]
@@ -28,3 +29,11 @@ serde = { version = "1.0.103", default-features = false, optional = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "deny", check-cfg = ['cfg(rust_v_1_55)' ] }
+
+[package.metadata.rbmt.test]
+exact_features = [
+    ["alloc"],
+    ["std"],
+    ["alloc", "serde"],
+    ["std", "serde"],
+]

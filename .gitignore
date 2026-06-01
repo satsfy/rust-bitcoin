@@ -6,6 +6,9 @@ internals/Cargo.lock
 bitcoin/Cargo.lock
 hashes/Cargo.lock
 
+!bitcoin/embedded/Cargo.lock
+!hashes/embedded/Cargo.lock
+
 # Build artifacts
 target
 internals/target
