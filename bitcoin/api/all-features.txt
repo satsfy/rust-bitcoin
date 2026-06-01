@@ -11460,6 +11460,7 @@ pub fn bitcoin::blockdata::transaction::Sequence::from_height(height: u16) -> Se
 pub fn bitcoin::blockdata::transaction::Sequence::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::blockdata::transaction::Sequence::from_seconds_ceil(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub fn bitcoin::blockdata::transaction::Sequence::from_seconds_floor(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
+pub fn bitcoin::blockdata::transaction::Sequence::from_stable(stable: bitcoin_units::sequence::Sequence) -> Self
 pub fn bitcoin::blockdata::transaction::Sequence::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::blockdata::transaction::Sequence::is_final(&self) -> bool
 pub fn bitcoin::blockdata::transaction::Sequence::is_height_locked(&self) -> bool
@@ -11468,6 +11469,7 @@ pub fn bitcoin::blockdata::transaction::Sequence::is_relative_lock_time(&self) -
 pub fn bitcoin::blockdata::transaction::Sequence::is_time_locked(&self) -> bool
 pub fn bitcoin::blockdata::transaction::Sequence::to_consensus_u32(self) -> u32
 pub fn bitcoin::blockdata::transaction::Sequence::to_relative_lock_time(&self) -> core::option::Option<bitcoin::blockdata::locktime::relative::LockTime>
+pub fn bitcoin::blockdata::transaction::Sequence::to_stable(self) -> bitcoin_units::sequence::Sequence
 impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::transaction::Sequence
   pub fn bitcoin::blockdata::transaction::Sequence::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::transaction::Sequence]
 impl bitcoin::consensus::encode::Encodable for bitcoin::blockdata::transaction::Sequence
@@ -13127,6 +13129,33 @@ impl<T> core::convert::From<T> for bitcoin::blockdata::witness::WitnessEncoder<'
   pub fn bitcoin::blockdata::witness::WitnessEncoder<'e>::from(t: T) -> T [impl: impl<T> core::convert::From<T> for bitcoin::blockdata::witness::WitnessEncoder<'e>]
 impl<V, T> ppv_lite86::types::VZip<V> for bitcoin::blockdata::witness::WitnessEncoder<'e> where V: ppv_lite86::types::MultiLane<T>
   pub fn bitcoin::blockdata::witness::WitnessEncoder<'e>::vzip(self) -> V [impl: impl<V, T> ppv_lite86::types::VZip<V> for bitcoin::blockdata::witness::WitnessEncoder<'e> where V: ppv_lite86::types::MultiLane<T>]
+pub mod bitcoin::compat
+pub use bitcoin::compat::Amount
+pub use bitcoin::compat::BlockHeight
+pub use bitcoin::compat::BlockHeightInterval
+pub use bitcoin::compat::BlockMtp
+pub use bitcoin::compat::BlockMtpInterval
+pub use bitcoin::compat::BlockTime
+pub use bitcoin::compat::CompactTarget
+pub use bitcoin::compat::FeeRate
+pub use bitcoin::compat::NumOpResult
+pub use bitcoin::compat::Sequence
+pub use bitcoin::compat::SignedAmount
+pub use bitcoin::compat::Target
+pub use bitcoin::compat::Weight
+pub use bitcoin::compat::Work
+pub use bitcoin::compat::absolute
+pub use bitcoin::compat::amount
+pub use bitcoin::compat::block
+pub use bitcoin::compat::fee_rate
+pub use bitcoin::compat::locktime
+pub use bitcoin::compat::parse_int
+pub use bitcoin::compat::pow
+pub use bitcoin::compat::relative
+pub use bitcoin::compat::result
+pub use bitcoin::compat::sequence
+pub use bitcoin::compat::time
+pub use bitcoin::compat::weight
 pub mod bitcoin::consensus
 pub mod bitcoin::consensus::encode
 #[non_exhaustive] pub enum bitcoin::consensus::encode::Error
@@ -23498,8 +23527,10 @@ pub fn bitcoin::pow::CompactTarget::from_consensus(bits: u32) -> Self
 pub fn bitcoin::pow::CompactTarget::from_header_difficulty_adjustment(last_epoch_boundary: bitcoin::blockdata::block::Header, current: bitcoin::blockdata::block::Header, params: impl core::convert::AsRef<bitcoin::consensus::params::Params>) -> bitcoin::pow::CompactTarget
 pub fn bitcoin::pow::CompactTarget::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::pow::CompactTarget::from_next_work_required(last: bitcoin::pow::CompactTarget, timespan: u64, params: impl core::convert::AsRef<bitcoin::consensus::params::Params>) -> bitcoin::pow::CompactTarget
+pub fn bitcoin::pow::CompactTarget::from_stable(stable: bitcoin_units::pow::CompactTarget) -> Self
 pub fn bitcoin::pow::CompactTarget::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::pow::CompactTarget::to_consensus(self) -> u32
+pub fn bitcoin::pow::CompactTarget::to_stable(self) -> bitcoin_units::pow::CompactTarget
 impl bitcoin::consensus::encode::Decodable for bitcoin::pow::CompactTarget
   pub fn bitcoin::pow::CompactTarget::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::pow::CompactTarget]
 impl bitcoin::consensus::encode::Encodable for bitcoin::pow::CompactTarget
@@ -23726,9 +23757,11 @@ impl bitcoin::pow::Target
 pub fn bitcoin::pow::Target::from_be_bytes(bytes: [u8; 32]) -> bitcoin::pow::Target
 pub fn bitcoin::pow::Target::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::pow::Target::from_le_bytes(bytes: [u8; 32]) -> bitcoin::pow::Target
+pub fn bitcoin::pow::Target::from_stable(stable: bitcoin_units::pow::Target) -> Self
 pub fn bitcoin::pow::Target::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::pow::Target::to_be_bytes(self) -> [u8; 32]
 pub fn bitcoin::pow::Target::to_le_bytes(self) -> [u8; 32]
+pub fn bitcoin::pow::Target::to_stable(self) -> bitcoin_units::pow::Target
 impl core::clone::Clone for bitcoin::pow::Target
   pub fn bitcoin::pow::Target::clone(&self) -> bitcoin::pow::Target [impl: impl core::clone::Clone for bitcoin::pow::Target]
 impl core::cmp::Eq for bitcoin::pow::Target
@@ -23795,9 +23828,11 @@ impl bitcoin::pow::Work
 pub fn bitcoin::pow::Work::from_be_bytes(bytes: [u8; 32]) -> bitcoin::pow::Work
 pub fn bitcoin::pow::Work::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::pow::Work::from_le_bytes(bytes: [u8; 32]) -> bitcoin::pow::Work
+pub fn bitcoin::pow::Work::from_stable(stable: bitcoin_units::pow::Work) -> Self
 pub fn bitcoin::pow::Work::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::pow::Work::to_be_bytes(self) -> [u8; 32]
 pub fn bitcoin::pow::Work::to_le_bytes(self) -> [u8; 32]
+pub fn bitcoin::pow::Work::to_stable(self) -> bitcoin_units::pow::Work
 impl bitcoin::pow::Work
 pub fn bitcoin::pow::Work::log2(self) -> f64
 pub fn bitcoin::pow::Work::to_target(self) -> bitcoin::pow::Target
@@ -31971,6 +32006,7 @@ pub fn bitcoin::blockdata::transaction::Sequence::from_height(height: u16) -> Se
 pub fn bitcoin::blockdata::transaction::Sequence::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::blockdata::transaction::Sequence::from_seconds_ceil(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub fn bitcoin::blockdata::transaction::Sequence::from_seconds_floor(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
+pub fn bitcoin::blockdata::transaction::Sequence::from_stable(stable: bitcoin_units::sequence::Sequence) -> Self
 pub fn bitcoin::blockdata::transaction::Sequence::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::blockdata::transaction::Sequence::is_final(&self) -> bool
 pub fn bitcoin::blockdata::transaction::Sequence::is_height_locked(&self) -> bool
@@ -31979,6 +32015,7 @@ pub fn bitcoin::blockdata::transaction::Sequence::is_relative_lock_time(&self) -
 pub fn bitcoin::blockdata::transaction::Sequence::is_time_locked(&self) -> bool
 pub fn bitcoin::blockdata::transaction::Sequence::to_consensus_u32(self) -> u32
 pub fn bitcoin::blockdata::transaction::Sequence::to_relative_lock_time(&self) -> core::option::Option<bitcoin::blockdata::locktime::relative::LockTime>
+pub fn bitcoin::blockdata::transaction::Sequence::to_stable(self) -> bitcoin_units::sequence::Sequence
 impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::transaction::Sequence
   pub fn bitcoin::blockdata::transaction::Sequence::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::transaction::Sequence]
 impl bitcoin::consensus::encode::Encodable for bitcoin::blockdata::transaction::Sequence
@@ -34785,8 +34822,10 @@ pub fn bitcoin::pow::CompactTarget::from_consensus(bits: u32) -> Self
 pub fn bitcoin::pow::CompactTarget::from_header_difficulty_adjustment(last_epoch_boundary: bitcoin::blockdata::block::Header, current: bitcoin::blockdata::block::Header, params: impl core::convert::AsRef<bitcoin::consensus::params::Params>) -> bitcoin::pow::CompactTarget
 pub fn bitcoin::pow::CompactTarget::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::pow::CompactTarget::from_next_work_required(last: bitcoin::pow::CompactTarget, timespan: u64, params: impl core::convert::AsRef<bitcoin::consensus::params::Params>) -> bitcoin::pow::CompactTarget
+pub fn bitcoin::pow::CompactTarget::from_stable(stable: bitcoin_units::pow::CompactTarget) -> Self
 pub fn bitcoin::pow::CompactTarget::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::pow::CompactTarget::to_consensus(self) -> u32
+pub fn bitcoin::pow::CompactTarget::to_stable(self) -> bitcoin_units::pow::CompactTarget
 impl bitcoin::consensus::encode::Decodable for bitcoin::pow::CompactTarget
   pub fn bitcoin::pow::CompactTarget::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::pow::CompactTarget]
 impl bitcoin::consensus::encode::Encodable for bitcoin::pow::CompactTarget
@@ -36305,6 +36344,7 @@ pub fn bitcoin::blockdata::transaction::Sequence::from_height(height: u16) -> Se
 pub fn bitcoin::blockdata::transaction::Sequence::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::blockdata::transaction::Sequence::from_seconds_ceil(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub fn bitcoin::blockdata::transaction::Sequence::from_seconds_floor(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
+pub fn bitcoin::blockdata::transaction::Sequence::from_stable(stable: bitcoin_units::sequence::Sequence) -> Self
 pub fn bitcoin::blockdata::transaction::Sequence::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::blockdata::transaction::Sequence::is_final(&self) -> bool
 pub fn bitcoin::blockdata::transaction::Sequence::is_height_locked(&self) -> bool
@@ -36313,6 +36353,7 @@ pub fn bitcoin::blockdata::transaction::Sequence::is_relative_lock_time(&self) -
 pub fn bitcoin::blockdata::transaction::Sequence::is_time_locked(&self) -> bool
 pub fn bitcoin::blockdata::transaction::Sequence::to_consensus_u32(self) -> u32
 pub fn bitcoin::blockdata::transaction::Sequence::to_relative_lock_time(&self) -> core::option::Option<bitcoin::blockdata::locktime::relative::LockTime>
+pub fn bitcoin::blockdata::transaction::Sequence::to_stable(self) -> bitcoin_units::sequence::Sequence
 impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::transaction::Sequence
   pub fn bitcoin::blockdata::transaction::Sequence::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::transaction::Sequence]
 impl bitcoin::consensus::encode::Encodable for bitcoin::blockdata::transaction::Sequence
@@ -37032,9 +37073,11 @@ impl bitcoin::pow::Target
 pub fn bitcoin::pow::Target::from_be_bytes(bytes: [u8; 32]) -> bitcoin::pow::Target
 pub fn bitcoin::pow::Target::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::pow::Target::from_le_bytes(bytes: [u8; 32]) -> bitcoin::pow::Target
+pub fn bitcoin::pow::Target::from_stable(stable: bitcoin_units::pow::Target) -> Self
 pub fn bitcoin::pow::Target::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::pow::Target::to_be_bytes(self) -> [u8; 32]
 pub fn bitcoin::pow::Target::to_le_bytes(self) -> [u8; 32]
+pub fn bitcoin::pow::Target::to_stable(self) -> bitcoin_units::pow::Target
 impl core::clone::Clone for bitcoin::pow::Target
   pub fn bitcoin::pow::Target::clone(&self) -> bitcoin::pow::Target [impl: impl core::clone::Clone for bitcoin::pow::Target]
 impl core::cmp::Eq for bitcoin::pow::Target
@@ -38190,9 +38233,11 @@ impl bitcoin::pow::Work
 pub fn bitcoin::pow::Work::from_be_bytes(bytes: [u8; 32]) -> bitcoin::pow::Work
 pub fn bitcoin::pow::Work::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
 pub fn bitcoin::pow::Work::from_le_bytes(bytes: [u8; 32]) -> bitcoin::pow::Work
+pub fn bitcoin::pow::Work::from_stable(stable: bitcoin_units::pow::Work) -> Self
 pub fn bitcoin::pow::Work::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub fn bitcoin::pow::Work::to_be_bytes(self) -> [u8; 32]
 pub fn bitcoin::pow::Work::to_le_bytes(self) -> [u8; 32]
+pub fn bitcoin::pow::Work::to_stable(self) -> bitcoin_units::pow::Work
 impl bitcoin::pow::Work
 pub fn bitcoin::pow::Work::log2(self) -> f64
 pub fn bitcoin::pow::Work::to_target(self) -> bitcoin::pow::Target
