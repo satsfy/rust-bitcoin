@@ -10,7 +10,6 @@ categories = ["cryptography::cryptocurrencies"]
 keywords = ["internal"]
 readme = "README.md"
 edition = "2018"
-rust-version = "1.48.0"
 exclude = ["tests", "contrib"]
 
 [features]

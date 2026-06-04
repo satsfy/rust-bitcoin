@@ -1,161 +1,154 @@
---- # rust-bitcoin CI: If you edit this file please update README.md
-on: # yamllint disable-line rule:truthy
+on:
   push:
     branches:
       - 0.31.x
-      - "test-ci/**"
   pull_request:
 
 name: Continuous integration
 
-permissions: {}
-
-env:
-  RBMT_LOG_LEVEL: "progress"
-
 jobs:
-  Check:
-    name: Check - ${{ matrix.task }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
+  Stable:
+    name: Test - stable toolchain
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        task: [docs, docsrs, bench, test, lint]
     steps:
-      # Cleaning up github bloat so that test feature artifacts don't run out of disk.
-      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
-      - name: "Run ${{ matrix.task }}"
-        run: cargo rbmt ${{ matrix.task }}
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        # https://github.com/dtolnay/rust-toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Running test script
+        env:
+          DO_COV: true
+          DO_LINT: true
+          AS_DEPENDENCY: false
+          DO_NO_STD: true
+          DO_DOCS: true
+          DO_FEATURE_MATRIX: true
+          DO_SCHEMARS_TESTS: true # Currently only used in hashes crate.
+        run: ./contrib/test.sh
 
-  Prepare:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      nightly_version: ${{ steps.read_toolchain.outputs.nightly_version }}
+  Beta:
+    name: Test - beta toolchain
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@beta
+      - name: Running test script
+        env:
+          AS_DEPENDENCY: false
+          DO_NO_STD: true
+        run: ./contrib/test.sh
+
+  Nightly:
+    name: Test - nightly toolchain
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Running test script
+        env:
+          DO_FMT: false
+          DO_BENCH: true
+          AS_DEPENDENCY: false
+          DO_NO_STD: true
+          DO_DOCSRS: true
+        run: ./contrib/test.sh
+
+  MSRV:
+    name: Test - 1.48.0 toolchain
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          persist-credentials: false
-      - name: "Read workspace versions"
-        id: read_toolchain
-        run: echo "nightly_version=$(cargo metadata --format-version 1 --no-deps | jq -r '.metadata.rbmt.toolchains.nightly')" >> $GITHUB_OUTPUT
+          toolchain: "1.48.0"
+      - name: Running test script
+        env:
+          DO_FEATURE_MATRIX: true
+          DO_NO_STD: true
+        run: ./contrib/test.sh
 
   Arch32bit:
     name: Test 32-bit version
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
+    runs-on: ubuntu-latest
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
-      - name: "Add architecture i386 and install dependencies"
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            gcc-multilib \
-            g++-multilib \
-            libc6-dev-i386 \
-            lib32stdc++-13-dev
-      - name: "Install target"
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Add architecture i386
+        run: sudo dpkg --add-architecture i386
+      - name: Install i686 gcc
+        run: sudo apt-get update -y && sudo apt-get install -y gcc-multilib
+      - name: Install target
         run: rustup target add i686-unknown-linux-gnu
-      - name: "Set dependencies"
-        run: cp Cargo-recent.lock Cargo.lock
-      - name: "Run test on i686"
+      - name: Run test on i686
         run: cargo test --target i686-unknown-linux-gnu
 
   Cross:
-    name: Cross test - stable toolchain
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - s390x-unknown-linux-gnu
+    name: Cross test
+    if: ${{ !github.event.act }}
+    runs-on: ubuntu-latest
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
-      - name: "Install target"
-        run: rustup target add ${{ matrix.target }}
-      - name: "Install cross"
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install target
+        run: rustup target add s390x-unknown-linux-gnu
+      - name: install cross
         run: cargo install cross --locked
-      - name: "Set dependencies"
-        run: cp Cargo-recent.lock Cargo.lock
-      - name: "Run cross test"
-        run: cross test --target ${{ matrix.target }}
+      - name: run cross test
+        run: cross test --target s390x-unknown-linux-gnu
 
   Embedded:
-    name: Embedded - nightly toolchain
-    needs: Prepare
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
+    runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "-C link-arg=-Tlink.x"
       CARGO_TARGET_THUMBV7M_NONE_EABI_RUNNER: "qemu-system-arm -cpu cortex-m3 -machine mps2-an385 -nographic -semihosting-config enable=on,target=native -kernel"
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: "Set up QEMU"
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU
         run: sudo apt update && sudo apt install -y qemu-system-arm gcc-arm-none-eabi
-      - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: ${{ needs.Prepare.outputs.nightly_version }}
           targets: thumbv7m-none-eabi
-      - name: "Install rust-src"
+      - name: Install src
         run: rustup component add rust-src
-      - name: "Run bitcoin/embedded"
-        run: cd bitcoin/embedded && cp Cargo-recent.lock Cargo.lock && cargo run --target thumbv7m-none-eabi
-      - name: "Run hashes/embedded no alloc"
-        run: cd hashes/embedded && cp Cargo-recent.lock Cargo.lock && cargo run --target thumbv7m-none-eabi
-      - name: "Run hashes/embedded with alloc"
-        run: cd hashes/embedded && cp Cargo-recent.lock Cargo.lock && cargo run --target thumbv7m-none-eabi --features=alloc
+      - name: Run bitcoin/embedded
+        run: cd bitcoin/embedded && cargo run --target thumbv7m-none-eabi
+      - name: Run hashes/embedded no alloc
+        run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi
+      - name: Run hashes/embedded with alloc
+        run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi --features=alloc
 
-  ASAN: # hashes crate only.
-    name: ASAN - nightly toolchain
-    needs: Prepare
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        dep: [recent]
+  ASAN:
+    name: Address sanitizer     # hashes crate only.
+    runs-on: ubuntu-latest
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
-        with:
-          toolchain: ${{ needs.Prepare.outputs.nightly_version }}
-      - name: "Install rust-src"
+      - name: Checkout Crate
+        uses: actions/checkout@v4
+      - name: Checkout Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install src
         run: rustup component add rust-src
-      - name: "Set dependencies"
-        run: cp Cargo-${{ matrix.dep }}.lock Cargo.lock
-      - name: "Run address sanitizer"
+      - name: Running address sanitizer
         env:
           DO_ASAN: true
         run: cd hashes && ./contrib/test.sh
@@ -168,8 +161,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Checkout Toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: "Set dependencies"
-        run: cp Cargo-recent.lock Cargo.lock
       - name: Running WASM build
         env:
           DO_WASM: true

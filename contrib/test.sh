@@ -42,17 +42,13 @@ do
     done
     if [ "$dep" = recent ];
     then
-        # We always test committed dependencies but we want to warn if they could've been updated.
-        if cargo update;
+        # We always test committed dependencies but we want to warn if they could've been updated
+        cargo update
+        if diff Cargo-recent.lock Cargo.lock;
         then
-            if diff Cargo-recent.lock Cargo.lock;
-            then
-                echo Dependencies are up to date
-            else
-                echo "::warning file=Cargo-recent.lock::Dependencies could be updated"
-            fi
+            echo Dependencies are up to date
         else
-            echo "::warning file=Cargo-recent.lock::Skipped update check, cargo update failed (likely a yanked dependency)"
+            echo "::warning file=Cargo-recent.lock::Dependencies could be updated"
         fi
     fi
 done
