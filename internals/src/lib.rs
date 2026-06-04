@@ -20,6 +20,11 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
+// This crate is `#![no_std]`, so on edition 2018 Kani cannot find its runtime on its own.
+// Import it explicitly so `cargo kani --only-codegen` can process the crate.
+#[cfg(kani)]
+extern crate kani;
+
 pub mod error;
 pub mod macros;
 mod parse;
