@@ -1,9 +1,9 @@
---- # rust-bitcoin CI: If you edit this file please update README.md
-on: # yamllint disable-line rule:truthy
+---   # rust-bitcoin CI: If you edit this file please update README.md
+on:   # yamllint disable-line rule:truthy
   push:
     branches:
-      - 0.31.x
-      - "test-ci/**"
+      - master
+      - 'test-ci/**'
   pull_request:
 
 name: Continuous integration
@@ -35,7 +35,6 @@ jobs:
         run: cargo rbmt test --toolchain ${{ matrix.toolchain }} --lock-file ${{ matrix.dep }}
 
   Check:
-    name: Check - ${{ matrix.task }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -44,8 +43,6 @@ jobs:
       matrix:
         task: [api, lint, docs, docsrs, bench]
     steps:
-      # Cleaning up github bloat so that test feature artifacts don't run out of disk.
-      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
@@ -53,21 +50,20 @@ jobs:
       - name: "Run ${{ matrix.task }}"
         run: cargo rbmt ${{ matrix.task }}
 
-  Kani:
-    name: Kani codegen - stable toolchain
+  Prerelease:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
-      - name: "Build Kani proofs"
-        uses: model-checking/kani-github-action@f838096619a707b0f6b2118cf435eaccfa33e51f # v1.1
-        with:
-          args: "--only-codegen"
+          fetch-depth: 0 # History required for version bump detection.
+      - uses: ./.github/actions/setup-rbmt
+      - name: "Run pre-release checks"
+        run: cargo rbmt prerelease --baseline ${{ github.event.pull_request.base.sha || github.event.before }}
 
+  # Non cargo-rbmt jobs manage their toolchain version directly.
   Prepare:
     runs-on: ubuntu-24.04
     permissions:
@@ -81,7 +77,7 @@ jobs:
           persist-credentials: false
       - name: "Read workspace versions"
         id: read_toolchain
-        run: echo "nightly_version=$(cargo metadata --format-version 1 --no-deps | jq -r '.metadata.rbmt.toolchains.nightly')" >> $GITHUB_OUTPUT
+        run: echo "nightly_version=$(cargo metadata --format-version 1 | jq -r '.metadata.rbmt.toolchains.nightly')" >> $GITHUB_OUTPUT
 
   Arch32bit:
     name: Test 32-bit version
@@ -104,10 +100,10 @@ jobs:
             g++-multilib \
             libc6-dev-i386 \
             lib32stdc++-13-dev
+      - name: "Install i686 gcc"
+        run: sudo apt-get update -y && sudo apt-get install -y gcc-multilib
       - name: "Install target"
         run: rustup target add i686-unknown-linux-gnu
-      - name: "Set dependencies"
-        run: cp Cargo-recent.lock Cargo.lock
       - name: "Run test on i686"
         run: cargo test --target i686-unknown-linux-gnu
 
@@ -121,6 +117,7 @@ jobs:
       matrix:
         target:
           - s390x-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
     steps:
       - name: "Checkout repo"
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -132,8 +129,6 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       - name: "Install cross"
         run: cargo install cross --locked
-      - name: "Set dependencies"
-        run: cp Cargo-recent.lock Cargo.lock
       - name: "Run cross test"
         run: cross test --target ${{ matrix.target }}
 
@@ -161,13 +156,15 @@ jobs:
       - name: "Install rust-src"
         run: rustup component add rust-src
       - name: "Run bitcoin/embedded"
-        run: cd bitcoin/embedded && cp Cargo-recent.lock Cargo.lock && cargo run --target thumbv7m-none-eabi
+        run: cd bitcoin/embedded && cargo run --target thumbv7m-none-eabi
       - name: "Run hashes/embedded no alloc"
-        run: cd hashes/embedded && cp Cargo-recent.lock Cargo.lock && cargo run --target thumbv7m-none-eabi
-      - name: "Run hashes/embedded with alloc"
-        run: cd hashes/embedded && cp Cargo-recent.lock Cargo.lock && cargo run --target thumbv7m-none-eabi --features=alloc
+        run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi
+      - name: "Run hashes/embedded with alloc and no hex"
+        run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi --features=alloc
+      - name: "Run hashes/embedded with alloc and hex"
+        run: cd hashes/embedded && cargo run --target thumbv7m-none-eabi --features=alloc,hex
 
-  ASAN: # hashes crate only.
+  ASAN:                         # hashes crate only.
     name: ASAN - nightly toolchain
     needs: Prepare
     runs-on: ubuntu-24.04
@@ -190,25 +187,76 @@ jobs:
         run: rustup component add rust-src
       - name: "Set dependencies"
         run: cp Cargo-${{ matrix.dep }}.lock Cargo.lock
-      - name: "Run address sanitizer"
-        env:
-          DO_ASAN: true
-        run: cd hashes && ./contrib/test.sh
+      - name: "Run sanitizer script"
+        run: cd ./hashes && ./contrib/sanitizer.sh
 
-  WASM:
-    name: WebAssembly Build # hashes crate only.
-    runs-on: ubuntu-latest
+  Kani:
+    name: Kani codegen - stable toolchain
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
-      - name: Checkout Crate
-        uses: actions/checkout@v4
-      - name: Checkout Toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: "Set dependencies"
-        run: cp Cargo-recent.lock Cargo.lock
-      - name: Running WASM build
-        env:
-          DO_WASM: true
-        run: cd hashes && ./contrib/test.sh
+      - name: "Checkout repo"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: "Build Kani proofs"
+        uses: model-checking/kani-github-action@f838096619a707b0f6b2118cf435eaccfa33e51f # v1.1
+        with:
+          args: "--only-codegen"
+
+  Policy:
+    name: Enforce repo policy - stable toolchain
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
+      - name: "Run policy script"
+        run: ./contrib/check-for-policy-violations.sh
+
+  Re-exports:
+    name: Check re-exports - stable toolchain
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
+      - name: "Run primitives API checker script"
+        run: |
+          contrib/generate-primitives-re-export-test.sh && (cd ./primitives && cargo test --all-features)
+          contrib/generate-bitcoin-re-export-test.sh && (cd ./bitcoin && cargo test --all-features)
+      - name: "Check error type re-exports"
+        run: contrib/check-error-reexports.sh
+
+  Encodable-coverage:
+    name: Check Encode fuzz coverage - stable toolchain
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
+      - name: "Check Encode coverage"
+        run: ./contrib/check-encodable-coverage.sh
 
   DiffMutants:
     name: Check cargo mutants in diff - stable toolchain
@@ -222,9 +270,9 @@ jobs:
       - name: "Select toolchain"
         uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
       - name: "Fetch base branch for diff"
-        run: git fetch origin 0.31.x
+        run: git fetch origin master
       - name: "Retrieve relative diff"
-        run: git diff origin/0.31.x.. -- '*.rs' | tee git.diff
+        run: git diff origin/master.. -- '*.rs' | tee git.diff
       - uses: taiki-e/install-action@81ee1d48d9194cdcab880cbdc7d36e87d39874cb # v2.62.45
         with:
           tool: cargo-mutants

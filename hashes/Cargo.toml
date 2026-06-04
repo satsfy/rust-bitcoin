@@ -10,6 +10,7 @@ categories = ["algorithms"]
 keywords = [ "crypto", "bitcoin", "hash", "digest" ]
 readme = "README.md"
 edition = "2018"
+rust-version = "1.48.0"
 exclude = ["tests", "contrib"]
 
 [features]
@@ -25,6 +26,12 @@ small-hash = []
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.rbmt.test]
+# The schemars derive and its generated code require std, but at this MSRV (1.48) the optional
+# dependency cannot enable std on its own (that needs the `dep:` syntax from Cargo 1.60). Skip
+# testing it on its own, it is still covered by the all-features build.
+exclude_features = ["schemars"]
 
 [dependencies]
 hex = { package = "hex-conservative", version = "0.1.1", default-features = false }
