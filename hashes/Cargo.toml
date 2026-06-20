@@ -10,6 +10,7 @@ categories = ["algorithms"]
 keywords = [ "crypto", "bitcoin", "hash", "digest" ]
 readme = "README.md"
 edition = "2018"
+rust-version = "1.48.0"
 exclude = ["tests", "contrib"]
 
 [features]
@@ -25,6 +26,10 @@ small-hash = []
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.rbmt.test]
+# schemars require std, but the optional dep cannot enable std on its own.
+exclude_features = ["schemars"]
 
 [dependencies]
 hex = { package = "hex-conservative", version = "0.1.1", default-features = false }
