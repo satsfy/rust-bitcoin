@@ -5,6 +5,7 @@ use bitcoin::bip32::{ChildNumber, RelativeDerivationPath, Xpriv, Xpub};
 use bitcoin::{hex, FullPublicKey, NetworkKind};
 
 fn main() {
+    // test
     // This example derives root xprv from a 32-byte seed,
     // derives the child xprv with path m/84h/0h/0h,
     // prints out corresponding xpub,
