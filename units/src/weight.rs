@@ -136,15 +136,11 @@ impl Weight {
 
     /// Converts pre-1.0 type to a stable type.
     #[cfg(feature = "compat")]
-    pub fn to_stable(self) -> stable::Weight {
-        stable::Weight::from_wu(self.to_wu())
-    }
+    pub fn to_stable(self) -> stable::Weight { stable::Weight::from_wu(self.to_wu()) }
 
     /// Converts a stable type to a pre-1.0 type.
     #[cfg(feature = "compat")]
-    pub fn from_stable(stable: stable::Weight) -> Self {
-        Self::from_wu(stable.to_wu())
-    }
+    pub fn from_stable(stable: stable::Weight) -> Self { Self::from_wu(stable.to_wu()) }
 }
 
 /// Alternative will display the unit.
@@ -161,6 +157,14 @@ impl fmt::Display for Weight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        for weight in [Weight::MIN, Weight::from_wu(21_000), Weight::MAX] {
+            assert_eq!(Weight::from_stable(weight.to_stable()), weight);
+        }
+    }
 
     #[test]
     fn weight_constructor() {

@@ -300,7 +300,8 @@ impl LockTime {
     /// Converts pre-1.0 type to a stable type.
     #[cfg(feature = "compat")]
     pub fn to_stable(self) -> stable::relative::LockTime {
-        stable::relative::LockTime::from_consensus(self.to_consensus_u32()).expect("self type is guaranteed valid")
+        stable::relative::LockTime::from_consensus(self.to_consensus_u32())
+            .expect("self type is guaranteed valid")
     }
 
     /// Converts a stable type to a pre-1.0 type.
@@ -445,6 +446,20 @@ impl std::error::Error for IncompatibleTimeError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        let lock_times = [
+            LockTime::from_height(0),
+            LockTime::from_height(u16::MAX),
+            LockTime::from_512_second_intervals(0),
+            LockTime::from_512_second_intervals(u16::MAX),
+        ];
+        for lock_time in lock_times {
+            assert_eq!(LockTime::from_stable(lock_time.to_stable()), lock_time);
+        }
+    }
 
     #[test]
     fn satisfied_by_height() {

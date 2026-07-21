@@ -30,6 +30,7 @@ pub const bitcoin::blockdata::locktime::absolute::LockTime::ZERO: bitcoin::block
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_consensus(n: u32) -> Self
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_height(n: u32) -> core::result::Result<Self, bitcoin_units::locktime::absolute::ConversionError>
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
+pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_stable(stable: bitcoin_units::locktime::absolute::LockTime) -> Self
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_time(n: u32) -> core::result::Result<Self, bitcoin_units::locktime::absolute::ConversionError>
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub const fn bitcoin::blockdata::locktime::absolute::LockTime::is_block_height(&self) -> bool
@@ -38,6 +39,7 @@ pub fn bitcoin::blockdata::locktime::absolute::LockTime::is_implied_by(&self, ot
 pub const fn bitcoin::blockdata::locktime::absolute::LockTime::is_same_unit(&self, other: bitcoin::blockdata::locktime::absolute::LockTime) -> bool
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::is_satisfied_by(&self, height: bitcoin_units::locktime::absolute::Height, time: bitcoin_units::locktime::absolute::Time) -> bool
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::to_consensus_u32(self) -> u32
+pub fn bitcoin::blockdata::locktime::absolute::LockTime::to_stable(self) -> bitcoin_units::locktime::absolute::LockTime
 impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::locktime::absolute::LockTime
   pub fn bitcoin::blockdata::locktime::absolute::LockTime::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::locktime::absolute::LockTime]
 impl bitcoin::consensus::encode::Encodable for bitcoin::blockdata::locktime::absolute::LockTime
@@ -7551,6 +7553,7 @@ pub const bitcoin::blockdata::locktime::absolute::LockTime::ZERO: bitcoin::block
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_consensus(n: u32) -> Self
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_height(n: u32) -> core::result::Result<Self, bitcoin_units::locktime::absolute::ConversionError>
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
+pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_stable(stable: bitcoin_units::locktime::absolute::LockTime) -> Self
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_time(n: u32) -> core::result::Result<Self, bitcoin_units::locktime::absolute::ConversionError>
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub const fn bitcoin::blockdata::locktime::absolute::LockTime::is_block_height(&self) -> bool
@@ -7559,6 +7562,7 @@ pub fn bitcoin::blockdata::locktime::absolute::LockTime::is_implied_by(&self, ot
 pub const fn bitcoin::blockdata::locktime::absolute::LockTime::is_same_unit(&self, other: bitcoin::blockdata::locktime::absolute::LockTime) -> bool
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::is_satisfied_by(&self, height: bitcoin_units::locktime::absolute::Height, time: bitcoin_units::locktime::absolute::Time) -> bool
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::to_consensus_u32(self) -> u32
+pub fn bitcoin::blockdata::locktime::absolute::LockTime::to_stable(self) -> bitcoin_units::locktime::absolute::LockTime
 impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::locktime::absolute::LockTime
   pub fn bitcoin::blockdata::locktime::absolute::LockTime::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::locktime::absolute::LockTime]
 impl bitcoin::consensus::encode::Encodable for bitcoin::blockdata::locktime::absolute::LockTime
@@ -7792,6 +7796,7 @@ pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_height(n: u1
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_seconds_ceil(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_seconds_floor(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub fn bitcoin::blockdata::locktime::relative::LockTime::from_sequence(n: bitcoin::blockdata::transaction::Sequence) -> core::result::Result<Self, bitcoin::blockdata::locktime::relative::DisabledLockTimeError>
+pub fn bitcoin::blockdata::locktime::relative::LockTime::from_stable(stable: bitcoin_units::locktime::relative::LockTime) -> Self
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::is_block_height(&self) -> bool
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::is_block_time(&self) -> bool
 pub fn bitcoin::blockdata::locktime::relative::LockTime::is_implied_by(&self, other: bitcoin::blockdata::locktime::relative::LockTime) -> bool
@@ -7802,6 +7807,7 @@ pub fn bitcoin::blockdata::locktime::relative::LockTime::is_satisfied_by_height(
 pub fn bitcoin::blockdata::locktime::relative::LockTime::is_satisfied_by_time(&self, time: bitcoin_units::locktime::relative::Time) -> core::result::Result<bool, bitcoin::blockdata::locktime::relative::IncompatibleTimeError>
 pub fn bitcoin::blockdata::locktime::relative::LockTime::to_consensus_u32(&self) -> u32
 pub fn bitcoin::blockdata::locktime::relative::LockTime::to_sequence(&self) -> bitcoin::blockdata::transaction::Sequence
+pub fn bitcoin::blockdata::locktime::relative::LockTime::to_stable(self) -> bitcoin_units::locktime::relative::LockTime
 impl core::clone::Clone for bitcoin::blockdata::locktime::relative::LockTime
   pub fn bitcoin::blockdata::locktime::relative::LockTime::clone(&self) -> bitcoin::blockdata::locktime::relative::LockTime [impl: impl core::clone::Clone for bitcoin::blockdata::locktime::relative::LockTime]
 impl core::cmp::Eq for bitcoin::blockdata::locktime::relative::LockTime
@@ -17401,6 +17407,7 @@ pub const bitcoin::blockdata::locktime::absolute::LockTime::ZERO: bitcoin::block
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_consensus(n: u32) -> Self
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_height(n: u32) -> core::result::Result<Self, bitcoin_units::locktime::absolute::ConversionError>
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_hex(s: &str) -> core::result::Result<Self, bitcoin::error::PrefixedHexError>
+pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_stable(stable: bitcoin_units::locktime::absolute::LockTime) -> Self
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_time(n: u32) -> core::result::Result<Self, bitcoin_units::locktime::absolute::ConversionError>
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::from_unprefixed_hex(s: &str) -> core::result::Result<Self, bitcoin::error::UnprefixedHexError>
 pub const fn bitcoin::blockdata::locktime::absolute::LockTime::is_block_height(&self) -> bool
@@ -17409,6 +17416,7 @@ pub fn bitcoin::blockdata::locktime::absolute::LockTime::is_implied_by(&self, ot
 pub const fn bitcoin::blockdata::locktime::absolute::LockTime::is_same_unit(&self, other: bitcoin::blockdata::locktime::absolute::LockTime) -> bool
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::is_satisfied_by(&self, height: bitcoin_units::locktime::absolute::Height, time: bitcoin_units::locktime::absolute::Time) -> bool
 pub fn bitcoin::blockdata::locktime::absolute::LockTime::to_consensus_u32(self) -> u32
+pub fn bitcoin::blockdata::locktime::absolute::LockTime::to_stable(self) -> bitcoin_units::locktime::absolute::LockTime
 impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::locktime::absolute::LockTime
   pub fn bitcoin::blockdata::locktime::absolute::LockTime::consensus_decode<R: bitcoin_io::Read + ?core::marker::Sized>(r: &mut R) -> core::result::Result<Self, bitcoin::consensus::encode::Error> [impl: impl bitcoin::consensus::encode::Decodable for bitcoin::blockdata::locktime::absolute::LockTime]
 impl bitcoin::consensus::encode::Encodable for bitcoin::blockdata::locktime::absolute::LockTime
@@ -17642,6 +17650,7 @@ pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_height(n: u1
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_seconds_ceil(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_seconds_floor(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub fn bitcoin::blockdata::locktime::relative::LockTime::from_sequence(n: bitcoin::blockdata::transaction::Sequence) -> core::result::Result<Self, bitcoin::blockdata::locktime::relative::DisabledLockTimeError>
+pub fn bitcoin::blockdata::locktime::relative::LockTime::from_stable(stable: bitcoin_units::locktime::relative::LockTime) -> Self
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::is_block_height(&self) -> bool
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::is_block_time(&self) -> bool
 pub fn bitcoin::blockdata::locktime::relative::LockTime::is_implied_by(&self, other: bitcoin::blockdata::locktime::relative::LockTime) -> bool
@@ -17652,6 +17661,7 @@ pub fn bitcoin::blockdata::locktime::relative::LockTime::is_satisfied_by_height(
 pub fn bitcoin::blockdata::locktime::relative::LockTime::is_satisfied_by_time(&self, time: bitcoin_units::locktime::relative::Time) -> core::result::Result<bool, bitcoin::blockdata::locktime::relative::IncompatibleTimeError>
 pub fn bitcoin::blockdata::locktime::relative::LockTime::to_consensus_u32(&self) -> u32
 pub fn bitcoin::blockdata::locktime::relative::LockTime::to_sequence(&self) -> bitcoin::blockdata::transaction::Sequence
+pub fn bitcoin::blockdata::locktime::relative::LockTime::to_stable(self) -> bitcoin_units::locktime::relative::LockTime
 impl core::clone::Clone for bitcoin::blockdata::locktime::relative::LockTime
   pub fn bitcoin::blockdata::locktime::relative::LockTime::clone(&self) -> bitcoin::blockdata::locktime::relative::LockTime [impl: impl core::clone::Clone for bitcoin::blockdata::locktime::relative::LockTime]
 impl core::cmp::Eq for bitcoin::blockdata::locktime::relative::LockTime
@@ -24938,6 +24948,7 @@ pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_height(n: u1
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_seconds_ceil(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::from_seconds_floor(seconds: u32) -> core::result::Result<Self, bitcoin_units::locktime::relative::TimeOverflowError>
 pub fn bitcoin::blockdata::locktime::relative::LockTime::from_sequence(n: bitcoin::blockdata::transaction::Sequence) -> core::result::Result<Self, bitcoin::blockdata::locktime::relative::DisabledLockTimeError>
+pub fn bitcoin::blockdata::locktime::relative::LockTime::from_stable(stable: bitcoin_units::locktime::relative::LockTime) -> Self
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::is_block_height(&self) -> bool
 pub const fn bitcoin::blockdata::locktime::relative::LockTime::is_block_time(&self) -> bool
 pub fn bitcoin::blockdata::locktime::relative::LockTime::is_implied_by(&self, other: bitcoin::blockdata::locktime::relative::LockTime) -> bool
@@ -24948,6 +24959,7 @@ pub fn bitcoin::blockdata::locktime::relative::LockTime::is_satisfied_by_height(
 pub fn bitcoin::blockdata::locktime::relative::LockTime::is_satisfied_by_time(&self, time: bitcoin_units::locktime::relative::Time) -> core::result::Result<bool, bitcoin::blockdata::locktime::relative::IncompatibleTimeError>
 pub fn bitcoin::blockdata::locktime::relative::LockTime::to_consensus_u32(&self) -> u32
 pub fn bitcoin::blockdata::locktime::relative::LockTime::to_sequence(&self) -> bitcoin::blockdata::transaction::Sequence
+pub fn bitcoin::blockdata::locktime::relative::LockTime::to_stable(self) -> bitcoin_units::locktime::relative::LockTime
 impl core::clone::Clone for bitcoin::blockdata::locktime::relative::LockTime
   pub fn bitcoin::blockdata::locktime::relative::LockTime::clone(&self) -> bitcoin::blockdata::locktime::relative::LockTime [impl: impl core::clone::Clone for bitcoin::blockdata::locktime::relative::LockTime]
 impl core::cmp::Eq for bitcoin::blockdata::locktime::relative::LockTime

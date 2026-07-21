@@ -71,9 +71,7 @@ macro_rules! do_impl {
 
             /// Converts pre-1.0 type to a stable type.
             #[cfg(feature = "compat")]
-            pub fn to_stable(self) -> stable::$ty {
-                stable::$ty::from_be_bytes(self.to_be_bytes())
-            }
+            pub fn to_stable(self) -> stable::$ty { stable::$ty::from_be_bytes(self.to_be_bytes()) }
 
             /// Converts a stable type to a pre-1.0 type.
             #[cfg(feature = "compat")]
@@ -1186,6 +1184,20 @@ impl kani::Arbitrary for U256 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        let compact = CompactTarget::from_consensus(0x1d00_ffff);
+        assert_eq!(CompactTarget::from_stable(compact.to_stable()), compact);
+
+        for target in [Target::from_compact(compact), Target::MAX] {
+            assert_eq!(Target::from_stable(target.to_stable()), target);
+
+            let work = target.to_work();
+            assert_eq!(Work::from_stable(work.to_stable()), work);
+        }
+    }
 
     impl<T: Into<u128>> From<T> for Target {
         fn from(x: T) -> Self { Self(U256::from(x)) }

@@ -526,6 +526,20 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        let lock_times = [
+            LockTime::ZERO,
+            LockTime::from_consensus(499_999_999), // Maximum height based lock time.
+            LockTime::from_consensus(500_000_000), // Minimum time based lock time.
+            LockTime::from_consensus(u32::MAX),
+        ];
+        for lock_time in lock_times {
+            assert_eq!(LockTime::from_stable(lock_time.to_stable()), lock_time);
+        }
+    }
+
+    #[test]
     fn display_and_alternate() {
         let n = LockTime::from_consensus(741521);
         let s = format!("{}", n);

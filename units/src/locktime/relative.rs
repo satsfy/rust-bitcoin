@@ -206,3 +206,19 @@ impl<'a> Arbitrary<'a> for Time {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        for height in [Height::MIN, Height::from_height(21_000), Height::MAX] {
+            assert_eq!(Height::from_stable(height.to_stable()), height);
+        }
+        for time in [Time::MIN, Time::from_512_second_intervals(21_000), Time::MAX] {
+            assert_eq!(Time::from_stable(time.to_stable()), time);
+        }
+    }
+}

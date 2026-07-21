@@ -440,6 +440,17 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        for height in [Height::MIN, Height::from_consensus(741_521).unwrap(), Height::MAX] {
+            assert_eq!(Height::from_stable(height.to_stable()), height);
+        }
+        for time in [Time::MIN, Time::from_consensus(1_653_195_600).unwrap(), Time::MAX] {
+            assert_eq!(Time::from_stable(time.to_stable()), time);
+        }
+    }
+
+    #[test]
     fn time_from_str_hex_happy_path() {
         let actual = Time::from_hex("0x6289C350").unwrap();
         let expected = Time::from_consensus(0x6289C350).unwrap();

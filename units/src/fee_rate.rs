@@ -194,6 +194,19 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        let rates = [
+            FeeRate::ZERO,
+            FeeRate::from_sat_per_kwu(250),
+            FeeRate::from_sat_per_kwu(u32::MAX as u64), // Largest stable value.
+        ];
+        for rate in rates {
+            assert_eq!(FeeRate::from_stable(rate.to_stable()), rate);
+        }
+    }
+
+    #[test]
     fn fee_rate_const_test() {
         assert_eq!(0, FeeRate::ZERO.to_sat_per_kwu());
         assert_eq!(u64::MIN, FeeRate::MIN.to_sat_per_kwu());

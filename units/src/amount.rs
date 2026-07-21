@@ -1120,9 +1120,7 @@ impl Amount {
 
     /// Converts a stable type to a pre-1.0 type.
     #[cfg(feature = "compat")]
-    pub fn from_stable(stable: stable::Amount) -> Self {
-        Self::from_sat(stable.to_sat())
-    }
+    pub fn from_stable(stable: stable::Amount) -> Self { Self::from_sat(stable.to_sat()) }
 }
 
 impl default::Default for Amount {
@@ -1598,9 +1596,7 @@ impl SignedAmount {
 
     /// Converts a stable type to a pre-1.0 type.
     #[cfg(feature = "compat")]
-    pub fn from_stable(stable: stable::SignedAmount) -> Self {
-        Self::from_sat(stable.to_sat())
-    }
+    pub fn from_stable(stable: stable::SignedAmount) -> Self { Self::from_sat(stable.to_sat()) }
 }
 
 impl default::Default for SignedAmount {
@@ -2139,6 +2135,29 @@ mod tests {
     use std::panic;
 
     use super::*;
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn compat_round_trip() {
+        for amount in [Amount::ZERO, Amount::ONE_BTC, Amount::MAX_MONEY] {
+            assert_eq!(Amount::from_stable(amount.to_stable().unwrap()), amount);
+        }
+        // The stable type caps at `MAX_MONEY`.
+        assert!(Amount::MAX.to_stable().is_err());
+
+        let amounts = [
+            SignedAmount::ZERO,
+            SignedAmount::ONE_BTC,
+            SignedAmount::MAX_MONEY,
+            SignedAmount::ZERO - SignedAmount::MAX_MONEY,
+        ];
+        for amount in amounts {
+            assert_eq!(SignedAmount::from_stable(amount.to_stable().unwrap()), amount);
+        }
+        // The stable type caps at `+/-MAX_MONEY`.
+        assert!(SignedAmount::MAX.to_stable().is_err());
+        assert!(SignedAmount::MIN.to_stable().is_err());
+    }
 
     #[test]
     #[cfg(feature = "alloc")]
