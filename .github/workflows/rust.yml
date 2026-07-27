@@ -204,6 +204,37 @@ jobs:
       - name: "Run sanitizer script"
         run: cd ./hashes && ./contrib/sanitizer.sh
 
+  Fuzz-Regression:
+    name: Replay fuzz corpora - stable toolchain
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: "Checkout qa-assets"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ github.repository_owner }}/qa-assets
+          path: qa-assets
+          persist-credentials: false
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/bin
+            fuzz/target
+            target
+          key: cache-fuzz-replay-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
+      - name: "Select toolchain"
+        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # stable
+        with:
+          toolchain: '1.74.0'
+      - name: "Replay fuzz corpora"
+        working-directory: fuzz
+        run: ./replay-corpora.sh ../qa-assets/fuzz_corpora
+
   Kani:
     name: Kani codegen - stable toolchain
     runs-on: ubuntu-24.04
