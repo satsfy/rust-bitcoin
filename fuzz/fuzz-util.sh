@@ -31,7 +31,7 @@ checkWindowsFiles() {
 
 # Checks whether a fuzz case has artifacts, and dumps them in hex
 checkReport() {
-  artifactDir="fuzz/artifacts/$1"
+  artifactDir="$REPO_DIR/fuzz/artifacts/$1"
   if [ -d "$artifactDir" ] && [ -n "$(ls -A "$artifactDir" 2>/dev/null)" ]; then
     echo "Artifacts found for target: $1"
     for artifact in "$artifactDir"/*; do
