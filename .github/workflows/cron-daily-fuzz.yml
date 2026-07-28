@@ -8,6 +8,12 @@ on:
     # - 6am CET
     # - 4pm AEDT
     - cron: '00 05 * * *'
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: Seconds to fuzz each target
+        required: false
+        default: '100'
 permissions: {}
 
 jobs:
@@ -38,8 +44,10 @@ jobs:
           toolchain: '1.74.0'
       - name: Fuzz shard ${{ matrix.shard_id }}
         working-directory: fuzz
+        env:
+          MAX_TOTAL_TIME: ${{ inputs.max_total_time || '100' }}
         run: |
           shard_targets=($(cargo fuzz list | sort | awk -v shard=${{ matrix.shard_id }} 'BEGIN{i=0} {if (i++ % 16 == shard) print}'))
           for target in "${shard_targets[@]}"; do
-            ./fuzz.sh "$target"
+            ./fuzz.sh "$target" "-max_total_time=$MAX_TOTAL_TIME"
           done
