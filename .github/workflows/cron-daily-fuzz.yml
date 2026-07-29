@@ -2,6 +2,7 @@
 
 name: Fuzz
 on:
+  workflow_dispatch:
   schedule:
     # 5am every day UTC, this correlates to:
     # - 10pm PDT
