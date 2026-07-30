@@ -2,6 +2,7 @@
 
 name: Fuzz
 on:
+  workflow_dispatch:
   schedule:
     # 5am every day UTC, this correlates to:
     # - 10pm PDT
@@ -37,7 +38,7 @@ jobs:
         with:
           toolchain: '1.74.0'
       - name: Install cargo-fuzz
-        run: cargo install --locked --version 0.12.0 cargo-fuzz
+        run: cargo install --force --locked --version 0.12.0 cargo-fuzz
       - name: Fuzz shard ${{ matrix.shard_id }}
         working-directory: fuzz
         shell: bash
