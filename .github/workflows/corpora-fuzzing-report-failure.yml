@@ -1,0 +1,92 @@
+# Open an issue when the corpora fuzz run fails and close it when the run
+# is green again. Same pattern as ci-failure-issues.yml, kept separate
+# because a corpora fuzz failure usually means a crash was found rather
+# than broken CI.
+name: Report fuzz failures
+
+on:
+  workflow_run:  # zizmor: ignore[dangerous-triggers]
+    workflows:
+      - Update fuzz corpora
+    types:
+      - completed
+    branches:
+      - master
+
+permissions: {}
+
+concurrency:
+  group: report-fuzz-failures
+  cancel-in-progress: false
+
+jobs:
+  sync-issue:
+    if: ${{ contains(fromJson('["failure","success"]'), github.event.workflow_run.conclusion) }}
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = "<!-- ci-failure-key:corpora-fuzz -->";
+            const workflowUrl = `${context.serverUrl}/${owner}/${repo}/actions/workflows/corpora-fuzzing-update.yml`;
+
+            const formatTs = iso => {
+              const d = new Date(iso);
+              const pad = n => String(n).padStart(2, "0");
+              return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} at ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
+            };
+
+            function titleFor() {
+              return "The corpora fuzz workflow is failing";
+            }
+
+            function bodyForFailure() {
+              return [
+                marker,
+                "",
+                `The [corpora fuzz workflow](${workflowUrl}) started failing on ${formatTs(run.created_at)}: [run #${run.run_number}](${run.html_url})`,
+                "",
+                "A failing fuzz job usually means fuzzing found a crash. The crashing input is attached to the run as a `crash-<target>` artifact.",
+              ].join("\n");
+            }
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+
+            const existing = issues.find(issue =>
+              !issue.pull_request && issue.body && issue.body.includes(marker)
+            );
+
+            if (run.conclusion === "failure" && !existing) {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: titleFor(),
+                body: bodyForFailure(),
+              });
+            }
+
+            if (run.conclusion === "success" && existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: `The [corpora fuzz workflow](${workflowUrl}) successfully ran again on ${formatTs(run.created_at)}: [run #${run.run_number}](${run.html_url}).`,
+              });
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                state: "closed",
+              });
+            }
