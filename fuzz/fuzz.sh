@@ -81,8 +81,12 @@ while :; do
     fi
     RUSTFLAGS="${RUSTFLAGS:-} $fuzz_rustflags" $chrt_cmd cargo +nightly fuzz run "$targetName" -- -max_total_time="$max_total_time"
 
-    echo "Minimizing corpus for target $targetName"
-    cargo +nightly fuzz cmin "$targetName"
+    # Minimizing is only useful for a corpus that is kept around, and it
+    # rebuilds the target, so it has to use the same flags as the run above.
+    if [ "$cycle_mode" = true ]; then
+      echo "Minimizing corpus for target $targetName"
+      RUSTFLAGS="${RUSTFLAGS:-} $fuzz_rustflags" cargo +nightly fuzz cmin "$targetName"
+    fi
   done
 
   # Exit after one cycle if not in cycle mode.
