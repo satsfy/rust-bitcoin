@@ -155,6 +155,7 @@ jobs:
   # their previous corpus.
   merge:
     needs: [setup, fuzz]
+    # even if a particular shard fails, run on successful shards, except if the workflow is cancelled
     if: ${{ always() && needs.setup.result == 'success' && needs.fuzz.result != 'cancelled' }}
     runs-on: ubuntu-24.04
     permissions:
