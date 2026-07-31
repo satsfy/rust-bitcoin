@@ -28,7 +28,7 @@ on:
       max_total_time:
         description: 'Seconds of fuzzing per target'
         required: false
-        default: '300'
+        default: '1'
 
 permissions: {}
 
