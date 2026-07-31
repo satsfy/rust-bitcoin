@@ -15,6 +15,9 @@ fn do_test(data: &[u8]) {
         Ok(block) => {
             let ser = encode_to_vec(&block);
             assert_eq!(&ser[..], data);
+            // Intentional crash to validate the corpora pipeline end to end,
+            // revert after the run opens its issue.
+            panic!("corpora validation, decoded a valid block");
         }
     }
 }
