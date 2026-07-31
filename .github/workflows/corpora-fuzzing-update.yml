@@ -6,8 +6,9 @@
 #
 # Pushing to qa-assets needs a cross-repo token, the default GITHUB_TOKEN is
 # scoped to this repo. Add a fine-grained PAT with contents read and write on
-# the qa-assets repo as the QA_ASSETS_PUSH_TOKEN actions secret. Without the
-# secret the merge job logs a notice and skips the push.
+# the qa-assets repo as the QA_ASSETS_PUSH_TOKEN actions secret. If the run
+# produced corpus changes and the secret is missing the merge job fails,
+# a green run must mean the corpora were persisted.
 name: Update fuzz corpora
 
 on:
@@ -207,8 +208,8 @@ jobs:
             exit 0
           fi
           if [ -z "$QA_TOKEN" ]; then
-            echo "QA_ASSETS_PUSH_TOKEN is not set, skipping push to qa-assets"
-            exit 0
+            echo "::error::QA_ASSETS_PUSH_TOKEN is not set, refusing to drop the corpus updates"
+            exit 1
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
