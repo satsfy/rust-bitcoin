@@ -221,3 +221,155 @@ jobs:
             git pull --rebase origin "$BRANCH"
           done
           exit 1
+
+  # Open an issue when the run found failures, close it when green again.
+  # Same lifecycle and first line as ci-failure-issues.yml, plus the failed
+  # targets, their logs and the crashing input artifacts, so nobody has to
+  # click through the matrix by hand. continue-on-error so a reporting
+  # problem never flips the run's own result.
+  report:
+    needs: [setup, fuzz, merge]
+    if: ${{ always() && needs.setup.result == 'success' && needs.fuzz.result != 'cancelled' && needs.merge.result != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    permissions:
+      issues: write
+      actions: read
+    env:
+      FUZZ_RESULT: ${{ needs.fuzz.result }}
+      MERGE_RESULT: ${{ needs.merge.result }}
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = "<!-- ci-failure-key:corpora-fuzz -->";
+            const workflowUrl = `${context.serverUrl}/${owner}/${repo}/actions/workflows/corpora-fuzzing-update.yml`;
+            const maxListed = 20;
+            const failed = process.env.FUZZ_RESULT === "failure" || process.env.MERGE_RESULT === "failure";
+
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner,
+              repo,
+              run_id: context.runId,
+            });
+
+            const formatTs = iso => {
+              const d = new Date(iso);
+              const pad = n => String(n).padStart(2, "0");
+              return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} at ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
+            };
+            const shortSha = sha => (sha || "unknown").slice(0, 7);
+            const commitUrl = sha => `${context.serverUrl}/${owner}/${repo}/commit/${sha}`;
+
+            // Dig out what actually failed so nobody has to open the run
+            // and click through 100 jobs by hand.
+            async function failureDetails() {
+              try {
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                  owner,
+                  repo,
+                  run_id: context.runId,
+                  filter: "latest",
+                  per_page: 100,
+                });
+                const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                  owner,
+                  repo,
+                  run_id: context.runId,
+                  per_page: 100,
+                });
+                const crashFor = name => artifacts.find(a => a.name === `crash-${name}`);
+                const artifactUrl = a => `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}/artifacts/${a.id}`;
+
+                const fuzzFailed = [];
+                const otherFailed = [];
+                for (const j of jobs) {
+                  if (j.conclusion !== "failure") continue;
+                  const m = j.name.match(/^fuzz \((.+)\)$/);
+                  if (m) {
+                    fuzzFailed.push({ target: m[1], url: j.html_url });
+                  } else {
+                    otherFailed.push({ name: j.name, url: j.html_url });
+                  }
+                }
+
+                const lines = [];
+                if (fuzzFailed.length > 0) {
+                  lines.push("", `Failed fuzz targets (${fuzzFailed.length}):`, "");
+                  for (const f of fuzzFailed.slice(0, maxListed)) {
+                    const crash = crashFor(f.target);
+                    const crashPart = crash
+                      ? ` - [crashing input](${artifactUrl(crash)})`
+                      : "";
+                    lines.push(`- [\`${f.target}\`](${f.url})${crashPart}`);
+                  }
+                  if (fuzzFailed.length > maxListed) {
+                    lines.push(`- and ${fuzzFailed.length - maxListed} more, see the run`);
+                  }
+                  lines.push(
+                    "",
+                    "To reproduce, download the crashing input and run",
+                    "",
+                    "```",
+                    "cargo +nightly fuzz run <target> <input-file>",
+                    "```",
+                    "",
+                    "Targets not prefixed `hashes_` are built with `RUSTFLAGS='--cfg=hashes_fuzz --cfg=secp256k1_fuzz'`.",
+                  );
+                }
+                if (otherFailed.length > 0) {
+                  lines.push("", "Other failed jobs, infrastructure rather than a crash:", "");
+                  for (const j of otherFailed) {
+                    lines.push(`- [\`${j.name}\`](${j.url})`);
+                  }
+                }
+                return lines;
+              } catch (e) {
+                core.warning(`Could not list jobs or artifacts: ${e.message}`);
+                return ["", "See the run for the failing jobs."];
+              }
+            }
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+
+            const existing = issues.find(issue =>
+              !issue.pull_request && issue.body && issue.body.includes(marker)
+            );
+
+            if (failed && !existing) {
+              const details = await failureDetails();
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: "The corpora fuzz workflow is failing",
+                body: [
+                  marker,
+                  "",
+                  `The [corpora fuzz workflow](${workflowUrl}) started failing on ${formatTs(run.created_at)}: [${run.name} #${run.run_number}](${run.html_url}) - [\`${shortSha(run.head_sha)}\`](${commitUrl(run.head_sha)})`,
+                  ...details,
+                ].join("\n"),
+              });
+            }
+
+            if (!failed && existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: `The [corpora fuzz workflow](${workflowUrl}) successfully ran again on ${formatTs(run.created_at)}: [${run.name} #${run.run_number}](${run.html_url}).`,
+              });
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                state: "closed",
+              });
+            }
