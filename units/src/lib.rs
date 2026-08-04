@@ -43,6 +43,9 @@ pub mod amount;
 pub mod fee_rate;
 #[cfg(feature = "alloc")]
 pub mod locktime;
+
+/// Demo item that changes the public API surface on purpose.
+pub const API_DIFF_DEMO: u32 = 0;
 #[cfg(feature = "alloc")]
 pub mod parse;
 #[cfg(feature = "alloc")]
