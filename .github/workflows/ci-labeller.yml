@@ -41,6 +41,8 @@ jobs:
         if: ${{ hashFiles('api-diff') != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # gh needs a repository context, there is no checkout in this job.
+          GH_REPO: ${{ github.repository }}
         run: |
           issue_number=$(head -n1 api-diff)
           exit_code=$(tail -n1 api-diff)
