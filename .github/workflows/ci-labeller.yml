@@ -29,6 +29,12 @@ jobs:
         with:
           # The workflow which completed a CI run and needs PR labels.
           run-id: ${{ github.event.workflow_run.id }}
+          # Required to download artifacts from another workflow run, without
+          # it the action lists this run's own artifacts and finds none.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Place artifact contents directly in the workspace instead of one
+          # directory per artifact, the steps below expect plain files.
+          merge-multiple: true
       # The API diff label artifact must have the PR number on the first line,
       # and the exit code of the diff detection on the second line.
       - name: "Toggle API diff Label"
