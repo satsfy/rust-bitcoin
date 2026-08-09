@@ -1,0 +1,63 @@
+# TEST HARNESS - do not merge upstream.
+#
+# Copy of ci-labeller.yml's download + semver-break steps, with a diagnostic
+# step in between. This file MUST live on your fork's default branch, because
+# workflow_run only ever runs the default-branch copy of a workflow.
+
+on:   # yamllint disable-line rule:truthy
+  workflow_run:  # zizmor: ignore[dangerous-triggers]
+    workflows: [TEST Check semver breaks]
+    types: [completed]
+
+name: TEST CI Labeller
+
+permissions: {}
+
+jobs:
+  Label:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      # This is the step under test, verbatim from the PR.
+      - name: "Download Workflow Artifacts"
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: "DIAGNOSTIC - what actually landed on disk"
+        run: |
+          echo "=== recursive listing of workspace ==="
+          ls -laR .
+          echo
+          echo "=== does the path the labeller looks for exist? ==="
+          if [ -f semver-break ]; then
+            echo "PASS: ./semver-break exists as a regular file"
+            cat semver-break
+          elif [ -d semver-break ]; then
+            echo "FAIL: ./semver-break is a DIRECTORY (nested artifact dir)"
+            ls -la semver-break
+          else
+            echo "FAIL: ./semver-break does not exist (download got nothing)"
+          fi
+
+      - name: "DIAGNOSTIC - what hashFiles sees"
+        run: |
+          echo "hashFiles('semver-break') = '${{ hashFiles('semver-break') }}'"
+          if [ -z "${{ hashFiles('semver-break') }}" ]; then
+            echo "FAIL: hashFiles is empty, so the real labeller step would SKIP"
+          else
+            echo "PASS: hashFiles is non-empty, the real labeller step would RUN"
+          fi
+
+      # Verbatim from the PR. Watch whether this runs or skips.
+      - name: "Comment and Label on API break"
+        if: ${{ hashFiles('semver-break') != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          issue_number=$(cat semver-break)
+          echo "would run: gh pr comment '$issue_number'"
+          echo "would run: gh pr edit '$issue_number' --add-label 'API break'"

@@ -1,0 +1,32 @@
+# TEST HARNESS - do not merge upstream.
+#
+# Stands in for semver-checks.yml. Uploads a fake `semver-break` artifact in
+# ~10s instead of running a real semver build, so the labeller can be tested
+# on its own. The workflow `name:` below must match what test-labeller.yml
+# listens for.
+
+on:   # yamllint disable-line rule:truthy
+  pull_request:
+
+name: TEST Check semver breaks
+permissions: {}
+
+jobs:
+  Semver:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: "Fake the semver result"
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "$PR_NUMBER" > semver-break
+          echo "1" >> semver-break
+          echo "--- artifact contents ---"
+          cat semver-break
+      - name: "Upload breaking state"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: semver-break
+          path: semver-break
