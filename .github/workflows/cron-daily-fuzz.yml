@@ -1,4 +1,5 @@
-# Fuzz targets are distributed over a static number of jobs.
+# Fuzz targets are distributed over a static number of jobs. Each target's
+# corpus is seeded from rust-bitcoin/qa-assets and pushed back after the run.
 
 name: Fuzz
 on:
@@ -9,11 +10,25 @@ on:
     # - 4pm AEDT
     - cron: '00 05 * * *'
   workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: 'Seconds of fuzzing per target'
+        required: false
+        default: '300'
 permissions: {}
+
+# Never let two runs race on the final qa-assets push.
+concurrency:
+  group: cron-daily-fuzz
+  cancel-in-progress: false
+
+env:
+  MAX_TOTAL_TIME: ${{ inputs.max_total_time || '300' }}
 
 jobs:
   fuzz:
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     permissions:
       contents: read
     strategy:
@@ -26,6 +41,11 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: ${{ github.repository_owner }}/qa-assets
+          path: qa-assets
+          persist-credentials: false
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         id: cache-fuzz
         with:
@@ -36,12 +56,60 @@ jobs:
           key: cache-fuzz-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
       - uses: ./.github/actions/setup-rbmt
       - name: Install cargo-fuzz
-        run: cargo install --locked --force --version 0.13.2 cargo-fuzz
+        run: ./contrib/install-cargo-fuzz.sh
       - name: Fuzz shard ${{ matrix.shard_id }}
-        working-directory: fuzz
-        shell: bash
-        run: |
-          shard_targets=($(cargo fuzz list | sort | awk -v shard=${{ matrix.shard_id }} 'BEGIN{i=0} {if (i++ % 16 == shard) print}'))
-          for target in "${shard_targets[@]}"; do
-            ./fuzz.sh "$target"
-          done
+        run: ./contrib/fuzz-shard.sh ${{ matrix.shard_id }} 16 qa-assets/fuzz_corpora
+      - name: Upload corpora
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: corpus-shard-${{ matrix.shard_id }}
+          path: fuzz/outgoing
+          if-no-files-found: ignore
+      - name: Report crashes
+        if: failure()
+        run: ./contrib/report-fuzz-crashes.sh crash-shard-${{ matrix.shard_id }}
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crash-shard-${{ matrix.shard_id }}
+          path: fuzz/artifacts
+          if-no-files-found: ignore
+
+  merge:
+    needs: fuzz
+    if: ${{ !cancelled() && needs.fuzz.result != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: ${{ github.repository_owner }}/qa-assets
+          token: ${{ secrets.QA_ASSETS_PUSH_TOKEN || github.token }}
+          persist-credentials: true
+      # Only used to enumerate the fuzz targets.
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          path: rust-bitcoin
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true
+        with:
+          pattern: corpus-shard-*
+          path: incoming
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true
+        with:
+          pattern: crash-shard-*
+          path: incoming-crashes
+      - name: Refresh corpora
+        run: rust-bitcoin/contrib/refresh-fuzz-corpora.sh incoming incoming-crashes rust-bitcoin
+      - name: Commit and push
+        env:
+          QA_TOKEN: ${{ secrets.QA_ASSETS_PUSH_TOKEN }}
+          SOURCE: ${{ github.repository }}@${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: main
+        run: rust-bitcoin/contrib/push-fuzz-corpora.sh
