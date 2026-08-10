@@ -306,14 +306,9 @@ jobs:
             fuzz/target
             target
           key: cache-corpora-replay-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
-      # Same version and stable-build workaround as the corpora update
-      # workflow, cargo-fuzz's locked rustix does not build on nightly.
+      # Version pin lives in the script, shared with the fuzz workflow.
       - name: "Install cargo-fuzz"
-        run: |
-          if ! cargo fuzz --version 2>/dev/null | grep -q '0\.12\.0'; then
-            rustup toolchain install stable --profile minimal --no-self-update
-            cargo +stable install --force --locked --version 0.12.0 cargo-fuzz
-          fi
+        run: ./contrib/install-cargo-fuzz.sh
       - name: "Replay corpora"
         run: ./contrib/replay-fuzz-corpora.sh qa-assets
       - name: "Upload crash artifacts"
