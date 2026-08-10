@@ -1,4 +1,4 @@
-# Fuzz every target seeded with the corpora stored in <owner>/qa-assets,
+# Fuzz every target seeded from its corpus stored in <owner>/qa-assets,
 # minimize, and push the refreshed corpora back to qa-assets.
 #
 # Corpus files are written by libFuzzer and named by the SHA-1 of their
@@ -9,7 +9,7 @@
 # the qa-assets repo as the QA_ASSETS_PUSH_TOKEN actions secret. If the run
 # produced corpus changes and the secret is missing the merge job fails,
 # a green run must mean the corpora were persisted.
-name: Update fuzz corpora
+name: Fuzz (corpora)
 
 on:
   schedule:
