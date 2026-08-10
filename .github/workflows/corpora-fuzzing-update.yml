@@ -143,6 +143,53 @@ jobs:
           name: corpus-${{ matrix.fuzz_target }}
           path: rust-bitcoin/fuzz/corpus/${{ matrix.fuzz_target }}
           if-no-files-found: warn
+      - name: Report crashes
+        if: failure()
+        run: |
+          dir="rust-bitcoin/fuzz/artifacts/$TARGET"
+          [ -d "$dir" ] || exit 0
+          found=0
+          for f in "$dir"/*; do
+            [ -f "$f" ] || continue
+            found=1
+            name=$(basename "$f")
+            size=$(wc -c < "$f")
+            {
+              echo "## Fuzz crash: $TARGET"
+              echo ""
+              echo "\`$name\` ($size bytes)"
+              echo ""
+              echo '```'
+              xxd "$f" | head -n 64
+              echo '```'
+              echo ""
+              if [ "$size" -le 65536 ]; then
+                echo "Reproduce locally (base64 of the full input):"
+                echo ""
+                echo '```'
+                base64 -w0 "$f"
+                echo ""
+                echo '```'
+                echo ""
+              else
+                echo "Input too large to inline, grab it from the crash-$TARGET artifact."
+                echo ""
+              fi
+              echo '```sh'
+              if [[ "$TARGET" != hashes_* ]]; then
+                echo 'export RUSTFLAGS="--cfg=hashes_fuzz --cfg=secp256k1_fuzz"'
+              fi
+              echo "base64 -d > crash <<'EOF' # paste the base64 line above"
+              echo "EOF"
+              echo "cargo +nightly fuzz run $TARGET crash"
+              echo '```'
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Fuzz crash in $TARGET::$name ($size bytes), hex dump and repro steps in the job summary"
+          done
+          if [ "$found" = 0 ]; then
+            echo "::error title=Fuzz failure in $TARGET::target failed without producing a crash artifact, see the Fuzz step log"
+          fi
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
