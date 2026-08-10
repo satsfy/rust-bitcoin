@@ -45,6 +45,10 @@ jobs:
       - uses: ./.github/actions/setup-rbmt
       - name: "Run ${{ matrix.task }}"
         run: cargo rbmt ${{ matrix.task }}
+      - name: "Explain api failure"
+        if: ${{ failure() && matrix.task == 'api' }}
+        run: |
+          echo "::notice title=API check failed by design::The api check fails whenever the public API changes. This is intentional, it makes API changes visible to reviewers. If the diff above is expected, regenerate the api text files and commit them."
 
   Bench:
     runs-on: ubuntu-24.04
