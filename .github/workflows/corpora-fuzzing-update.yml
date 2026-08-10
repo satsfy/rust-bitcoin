@@ -221,12 +221,17 @@ jobs:
         with:
           pattern: corpus-*
           path: incoming
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true
+        with:
+          pattern: crash-*
+          path: incoming-crashes
       - name: Refresh corpora
         env:
           TARGETS: ${{ needs.setup.outputs.targets }}
         run: |
           export LC_ALL=C
-          mkdir -p fuzz_corpora incoming
+          mkdir -p fuzz_corpora fuzz_crashes incoming incoming-crashes
           for dir in incoming/corpus-*/; do
             [ -d "$dir" ] || continue
             name=$(basename "$dir")
@@ -235,9 +240,20 @@ jobs:
             mkdir -p "fuzz_corpora/$name"
             find "$dir" -maxdepth 1 -type f -exec cp -t "fuzz_corpora/$name/" {} +
           done
-          # Drop corpora of targets that no longer exist upstream.
+          # The crash store only accumulates, it is the regression suite of
+          # every crash ever found. Crash files are named by libFuzzer after
+          # the hash of their contents, -n makes re-adding a known crash a
+          # no-op.
+          for dir in incoming-crashes/crash-*/; do
+            [ -d "$dir" ] || continue
+            name=$(basename "$dir")
+            name=${name#crash-}
+            mkdir -p "fuzz_crashes/$name"
+            find "$dir" -maxdepth 1 -type f -exec cp -n -t "fuzz_crashes/$name/" {} +
+          done
+          # Drop entries of targets that no longer exist upstream.
           echo "$TARGETS" | jq -r '.[]' > "$RUNNER_TEMP/targets.txt"
-          for dir in fuzz_corpora/*/; do
+          for dir in fuzz_corpora/*/ fuzz_crashes/*/; do
             [ -d "$dir" ] || continue
             name=$(basename "$dir")
             grep -qx "$name" "$RUNNER_TEMP/targets.txt" || rm -rf "$dir"
@@ -249,7 +265,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BRANCH: main
         run: |
-          git add -A fuzz_corpora
+          git add -A fuzz_corpora fuzz_crashes
           if git diff --cached --quiet; then
             echo "No corpus changes"
             exit 0
