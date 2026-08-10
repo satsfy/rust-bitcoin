@@ -4,6 +4,7 @@ on:
   workflow_run:  # zizmor: ignore[dangerous-triggers]
     workflows:
       - Fuzz
+      - Fuzz (corpora)
       - Kani CI
       - Miri
     types:
@@ -32,6 +33,7 @@ jobs:
             const marker = `<!-- ci-failure-key:${workflow} -->`;
             const workflowFiles = {
               "Fuzz": "cron-daily-fuzz.yml",
+              "Fuzz (corpora)": "corpus-fuzzing.yml",
               "Kani CI": "cron-daily-kani.yml",
               "Miri": "cron-daily-miri.yml",
             };
