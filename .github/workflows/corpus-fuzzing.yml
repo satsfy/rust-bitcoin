@@ -138,12 +138,17 @@ jobs:
         with:
           pattern: corpus-*
           path: incoming
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true
+        with:
+          pattern: crash-*
+          path: incoming-crashes
       - name: Refresh corpora
         env:
           TARGETS: ${{ needs.setup.outputs.targets }}
         run: |
           echo "$TARGETS" | jq -r '.[]' > "$RUNNER_TEMP/targets.txt"
-          rust-bitcoin/fuzz/corpora.sh refresh incoming "$RUNNER_TEMP/targets.txt"
+          rust-bitcoin/fuzz/corpora.sh refresh incoming incoming-crashes "$RUNNER_TEMP/targets.txt"
       - name: Commit and push
         env:
           QA_ASSETS_PUSH_TOKEN: ${{ secrets.QA_ASSETS_PUSH_TOKEN }}
@@ -151,3 +156,47 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BRANCH: master
         run: rust-bitcoin/fuzz/corpora.sh push
+
+  # Replay the crash store so the workflow fails when a bad fuzz input is present
+  # in the codebase, so that issues don't close, while the fuzzing itself never stops.
+  replay-crash-store:
+    needs: [setup, merge]
+    if: ${{ always() && needs.merge.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.repository_owner }}/qa-assets
+          persist-credentials: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.setup.outputs.source_sha }}
+          path: rust-bitcoin
+          persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            rust-bitcoin/fuzz/target
+            rust-bitcoin/target
+          key: fuzz-${{ hashFiles('rust-bitcoin/**/Cargo.toml', 'rust-bitcoin/rbmt-version') }}
+          restore-keys: fuzz-
+      - name: Install cargo-rbmt
+        working-directory: rust-bitcoin
+        run: |
+          cargo install \
+            --git https://git.rust-bitcoin.org/rust-bitcoin/rust-bitcoin-maintainer-tools \
+            --rev "$(cat rbmt-version)" \
+            cargo-rbmt \
+            --locked
+      - name: Install nightly toolchain
+        working-directory: rust-bitcoin
+        run: rustup toolchain install "$(cargo rbmt toolchains --nightly)" --profile minimal --no-self-update
+      - name: Install cargo-fuzz
+        run: cargo install --locked --version "$CARGO_FUZZ_VERSION" cargo-fuzz
+      - name: Replay crash store
+        run: rust-bitcoin/fuzz/corpora.sh replay .
