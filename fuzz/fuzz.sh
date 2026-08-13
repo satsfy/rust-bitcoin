@@ -46,7 +46,7 @@ if [ -z "$max_total_time" ]; then
     max_total_time=100
   fi
 fi
-
+a
 case "$max_total_time" in
   ''|*[!0-9]*)
     echo "-max_total_time must be a non-negative integer number of seconds"
