@@ -272,6 +272,12 @@ jobs:
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
+      # Generate fresh API files for re-export tests
+      - uses: ./.github/actions/setup-rbmt
+      - name: "Generate API files for re-export checks"
+        run: cargo rbmt api --snapshot > /dev/null
+      - name: "Check committed API files are up to date"
+        run: git diff --exit-code -- '*/api/*.txt'
       - name: "Run primitives API checker script"
         run: |
           contrib/generate-primitives-re-export-test.sh && (cd ./primitives && cargo test --all-features)
