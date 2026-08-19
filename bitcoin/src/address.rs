@@ -208,7 +208,7 @@ mod tests {
         let key = "033bc8c83c52df5712229a2f72206d90192366c36428cb0c12b6af98324d97bfbc"
             .parse::<FullPublicKey>()
             .unwrap();
-        let addr = Address::p2wpkh(key, KnownHrp::Mainnet);
+        let addr = Address::p2wpkh(key, KnownHrp::Regtest);
         assert_eq!(&addr.to_string(), "bc1qvzvkjn4q3nszqxrv3nraga2r822xjty3ykvkuw");
         assert_eq!(addr.address_type(), Some(AddressType::P2wpkh));
         roundtrips(&addr, Bitcoin);
