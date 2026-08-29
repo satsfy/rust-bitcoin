@@ -7,6 +7,7 @@ use libfuzzer_sys::fuzz_target;
 fn main() {}
 
 fn do_test(data: &[u8]) {
+    if data.first() == Some(&0x41) { panic!("planted crash A"); }
     let script_result: Result<bitcoin::ScriptPubKeyBuf, _> =
         bitcoin::encoding::decode_from_slice(data);
 
