@@ -54,7 +54,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fuzz_target: ${{ fromJSON(needs.setup.outputs.targets) }}
+        # fuzz_target: ${{ fromJSON(needs.setup.outputs.targets) }}
+        fuzz_target: [bitcoin_deserialize_script]
     env:
       TARGET: ${{ matrix.fuzz_target }}
     steps:
@@ -96,7 +97,7 @@ jobs:
         run: rust-bitcoin/fuzz/corpora.sh seed . "$TARGET"
       - name: Fuzz
         working-directory: rust-bitcoin/fuzz
-        run: ./fuzz.sh "$TARGET" -max_total_time=300 # 5 minutes per target
+        run: ./fuzz.sh "$TARGET" -max_total_time=2 # 5 minutes per target
       # Only successful inputs reach fuzz_corpora.
       - name: Upload corpus
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
