@@ -133,7 +133,9 @@ pub mod as_sat_per_kwu_floor {
                     #[serde(transparent)]
                     struct Wrapper(#[serde(with = "super")] FeeRate);
 
-                    let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                    let mut out = Vec::with_capacity(
+                        internals::serde::cautious_size_hint::<FeeRate>(seq.size_hint()),
+                    );
                     while let Some(wrapped) = seq.next_element::<Wrapper>()? {
                         out.push(wrapped.0);
                     }
@@ -259,7 +261,9 @@ pub mod as_sat_per_vb_floor {
                     #[serde(transparent)]
                     struct Wrapper(#[serde(with = "super")] FeeRate);
 
-                    let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                    let mut out = Vec::with_capacity(
+                        internals::serde::cautious_size_hint::<FeeRate>(seq.size_hint()),
+                    );
                     while let Some(wrapped) = seq.next_element::<Wrapper>()? {
                         out.push(wrapped.0);
                     }
@@ -385,7 +389,9 @@ pub mod as_sat_per_vb_ceil {
                     #[serde(transparent)]
                     struct Wrapper(#[serde(with = "super")] FeeRate);
 
-                    let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                    let mut out = Vec::with_capacity(
+                        internals::serde::cautious_size_hint::<FeeRate>(seq.size_hint()),
+                    );
                     while let Some(wrapped) = seq.next_element::<Wrapper>()? {
                         out.push(wrapped.0);
                     }
