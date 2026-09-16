@@ -222,7 +222,7 @@ pub mod error {
     use core::fmt;
 
     /// Errors encountered when inserting or removing elements from an `ArrayVec`.
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum Error {
         /// Attempting to push additional element beyond the `ArrayVec`'s capacity.
         CapacityExceeded(usize),
