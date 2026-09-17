@@ -864,3 +864,37 @@ fn serde_regression_target() {
     let want = include_bytes!("data/u256_bincode") as &[_];
     assert_eq!(got, want);
 }
+
+#[test]
+fn vec_deserializers_do_not_trust_size_hint() {
+    use serde::de::value::{Error, SeqAccessDeserializer};
+    use serde::de::{DeserializeSeed, SeqAccess};
+
+    /// Claims to be as long as possible, then yields nothing.
+    struct HugeHint;
+    impl<'de> SeqAccess<'de> for HugeHint {
+        type Error = Error;
+        fn next_element_seed<T: DeserializeSeed<'de>>(
+            &mut self,
+            _: T,
+        ) -> Result<Option<T::Value>, Error> {
+            Ok(None)
+        }
+        fn size_hint(&self) -> Option<usize> { Some(usize::MAX) }
+    }
+
+    macro_rules! check {
+        ($($de:path => $t:ty),* $(,)?) => {$(
+            let got: Vec<$t> = $de(SeqAccessDeserializer::new(HugeHint)).unwrap();
+            assert!(got.is_empty());
+        )*};
+    }
+    check!(
+        amount::serde::as_sat::vec::deserialize => Amount,
+        amount::serde::as_btc::vec::deserialize => Amount,
+        amount::serde::as_str::vec::deserialize => Amount,
+        fee_rate::serde::as_sat_per_kwu_floor::vec::deserialize => FeeRate,
+        fee_rate::serde::as_sat_per_vb_floor::vec::deserialize => FeeRate,
+        fee_rate::serde::as_sat_per_vb_ceil::vec::deserialize => FeeRate,
+    );
+}
