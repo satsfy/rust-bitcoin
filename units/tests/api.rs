@@ -22,6 +22,102 @@ use bitcoin_units::{
 
 include!("../../include/api_test_tooling.rs");
 
+/// Groups of units public types for testing semantics, groups overlap.
+macro_rules! units {
+    (@apply [$($ty:ty),+ $(,)?], assert_implements, $traits:tt) => {
+        $(assert_trait_impls!($ty, $traits, true);)+
+    };
+    // Every public type. Other groups are subsets of this one.
+    (all, $($rest:tt)*) => {
+        units!(@apply [
+            amount::Amount,
+            amount::AmountDecoder,
+            amount::AmountDecoderError,
+            amount::AmountEncoder<'static>,
+            amount::BadPositionError,
+            amount::Denomination,
+            amount::Display,
+            amount::InvalidCharacterError,
+            amount::MissingDenominationError,
+            amount::MissingDigitsError,
+            amount::OutOfRangeError,
+            amount::ParseAmountError,
+            amount::ParseDenominationError,
+            amount::ParseError,
+            amount::PossiblyConfusingDenominationError,
+            amount::SignedAmount,
+            amount::TooPreciseError,
+            amount::UnknownDenominationError,
+            block::BlockHeight,
+            block::BlockHeightDecoder,
+            block::BlockHeightDecoderError,
+            block::BlockHeightEncoder<'static>,
+            block::BlockHeightInterval,
+            block::BlockMtp,
+            block::BlockMtpInterval,
+            block::TooBigForRelativeHeightError,
+            fee_rate::FeeRate,
+            fee_rate::serde::OverflowError,
+            locktime::absolute::ConversionError,
+            locktime::absolute::Height,
+            locktime::absolute::IncompatibleHeightError,
+            locktime::absolute::IncompatibleTimeError,
+            locktime::absolute::LockTime,
+            locktime::absolute::LockTimeDecoder,
+            locktime::absolute::LockTimeDecoderError,
+            locktime::absolute::LockTimeEncoder<'static>,
+            locktime::absolute::MedianTimePast,
+            locktime::absolute::ParseHeightError,
+            locktime::absolute::ParseTimeError,
+            locktime::relative::DisabledLockTimeError,
+            locktime::relative::IncompatibleHeightError,
+            locktime::relative::IncompatibleTimeError,
+            locktime::relative::InvalidHeightError,
+            locktime::relative::InvalidTimeError,
+            locktime::relative::IsSatisfiedByError,
+            locktime::relative::IsSatisfiedByHeightError,
+            locktime::relative::IsSatisfiedByTimeError,
+            locktime::relative::LockTime,
+            locktime::relative::NumberOf512Seconds,
+            locktime::relative::NumberOfBlocks,
+            locktime::relative::TimeOverflowError,
+            parse_int::ParseIntError,
+            parse_int::PrefixedHexError,
+            parse_int::UnprefixedHexError,
+            pow::CompactTarget,
+            pow::CompactTargetDecoder,
+            pow::CompactTargetDecoderError,
+            pow::CompactTargetEncoder<'static>,
+            pow::ParseTargetError,
+            pow::ParseWorkError,
+            pow::Target,
+            pow::Work,
+            result::MathOp,
+            result::NumOpError,
+            result::NumOpResult<Amount>,
+            sequence::Sequence,
+            sequence::SequenceDecoder,
+            sequence::SequenceDecoderError,
+            sequence::SequenceEncoder<'static>,
+            time::BlockTime,
+            time::BlockTimeDecoder,
+            time::BlockTimeDecoderError,
+            time::BlockTimeEncoder<'static>,
+            weight::Weight,
+        ], $($rest)*)
+    };
+}
+
+#[test]
+fn clone_trait() {
+    // C-COMMON-TRAITS: Every public type implements `Clone`.
+    // POLICY: Errors derive `Clone`, value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: Copy
+    // REQUIRED BY DEPENDENCY: `LockTime` derives `Clone` over its heights and times.
+    // REQUIRED BY DEPENDENCY: Errors and `NumOpResult` derive `Clone` over inner errors.
+    units!(all, assert_implements, [Clone]);
+}
+
 /// A struct that includes all public non-error enums.
 /// C-COMMON-TRAITS: `Copy`, `Clone`, `Debug`, `PartialEq`, `Eq`
 // None of these implement `PartialOrd` or `Ord`.
@@ -124,7 +220,7 @@ struct Default {
 
 /// A struct that includes all public error types (excl. decode errors).
 // These derives are the policy of `rust-bitcoin` not Rust API guidelines.
-#[derive(Debug, Clone, PartialEq, Eq)] // All public types implement Debug (C-DEBUG).
+#[derive(Debug, PartialEq, Eq)] // All public types implement Debug (C-DEBUG).
 struct Errors {
     a: amount::ParseError,
     b: amount::ParseAmountError,
@@ -170,7 +266,7 @@ struct Decoders {
 
 /// A struct that includes all public decoder error types.
 // These derives are the policy of `rust-bitcoin` not Rust API guidelines.
-#[derive(Debug, Clone, PartialEq, Eq)] // All public types implement Debug (C-DEBUG).
+#[derive(Debug, PartialEq, Eq)] // All public types implement Debug (C-DEBUG).
 struct DecoderErrors {
     a: amount::error::AmountDecoderError,
     b: block::BlockHeightDecoderError,
