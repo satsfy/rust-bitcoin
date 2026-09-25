@@ -521,6 +521,76 @@ fn sync_trait() {
     units!(all, assert_implements, [Sync]);
 }
 
+#[test]
+fn serialize_trait() {
+    // C-SERDE: Data structures implement `Serialize`.
+    units!(
+        structs,
+        assert_implements,
+        [Serialize],
+        except [
+            // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+            // No canonical unit, sats or BTC? Pick via `serde(with = "amount::serde::as_sat")`.
+            amount::Amount,
+            amount::SignedAmount,
+            fee_rate::FeeRate,
+        ]
+    );
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Denominations are a display concern and the arithmetic result types are transient.
+    units!(
+        enums,
+        assert_does_not_implement,
+        [Serialize],
+        except [
+            // TODO: satsfy IMPLEMENT (satisfied already)
+            // The locktime is stored as a `u32` that can be serialized.
+            locktime::absolute::LockTime,
+            locktime::relative::LockTime,
+        ]
+    );
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // A formatting adapter is just for printing.
+    units!([amount::Display], assert_does_not_implement, [Serialize]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Errors are just for reporting.
+    units!(errors, assert_does_not_implement, [Serialize]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Encoders and decoders only hold bytes mid-conversion, so they don't need serialization.
+    units!(codecs, assert_does_not_implement, [Serialize]);
+}
+
+#[test]
+fn deserialize_trait() {
+    // C-SERDE: Data structures implement `Deserialize`.
+    // REQUIRED BY DEPENDENCY: Serialize
+    units!(
+        public_types,
+        assert_implements,
+        [Deserialize],
+        except [
+            // FORBIDDEN BY DEPENDENCY: Serialize
+            amount::Amount,
+            amount::SignedAmount,
+            fee_rate::FeeRate,
+            amount::Denomination,
+            result::MathOp,
+            result::NumOpResult<Amount>,
+            amount::Display,
+        ]
+    );
+
+    // FORBIDDEN BY DEPENDENCY: Serialize
+    units!(errors, assert_does_not_implement, [Deserialize]);
+
+    // FORBIDDEN BY DEPENDENCY: Serialize
+    units!(codecs, assert_does_not_implement, [Deserialize]);
+}
+
 /// A struct that includes all public non-error enums.
 struct Enums {
     a: amount::Denomination,
@@ -601,30 +671,6 @@ fn c_object() {
         // c: Box<dyn amount::serde::SerdeAmountForOpt>,
         // d: Box<dyn parse::Integer>, // Because of core::num::ParseIntError
     }
-}
-
-/// C-SERDE: Tests that serde traits are implemented where expected.
-#[test]
-fn c_serde() {
-    fn assert_serde<T: serde::Serialize + for<'de> serde::Deserialize<'de>>() {}
-
-    // assert_serde::<amount::Denomination>();
-    assert_serde::<absolute::LockTime>();
-    assert_serde::<relative::LockTime>();
-    // assert_serde::<result::MathOp>();
-    // assert_serde::<result::NumOpResult<Amount>>();
-    assert_serde::<BlockHeight>();
-    assert_serde::<BlockHeightInterval>();
-    assert_serde::<BlockMtp>();
-    assert_serde::<BlockMtpInterval>();
-    assert_serde::<locktime::absolute::Height>();
-    assert_serde::<locktime::absolute::MedianTimePast>();
-    assert_serde::<locktime::relative::NumberOf512Seconds>();
-    assert_serde::<locktime::relative::NumberOfBlocks>();
-    assert_serde::<pow::CompactTarget>();
-    assert_serde::<BlockTime>();
-    assert_serde::<Weight>();
-    assert_serde::<Sequence>();
 }
 
 macro_rules! assert_format_matches {
