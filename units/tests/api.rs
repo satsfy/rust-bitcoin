@@ -462,8 +462,26 @@ fn partial_ord_trait() {
     units!(codecs, assert_does_not_implement, [PartialOrd]);
 }
 
+#[test]
+fn ord_trait() {
+    // C-COMMON-TRAITS: Every value type implements `Ord`.
+    // POLICY: Value types use the standard derive set.
+    units!(structs, assert_implements, [Ord]);
+
+    // FORBIDDEN BY DEPENDENCY: PartialOrd
+    units!(enums, assert_does_not_implement, [Ord]);
+
+    // FORBIDDEN BY DEPENDENCY: Eq, PartialOrd
+    units!([amount::Display], assert_does_not_implement, [Ord]);
+
+    // FORBIDDEN BY DEPENDENCY: PartialOrd
+    units!(errors, assert_does_not_implement, [Ord]);
+
+    // FORBIDDEN BY DEPENDENCY: Eq, PartialOrd
+    units!(codecs, assert_does_not_implement, [Ord]);
+}
+
 /// A struct that includes all public non-error enums.
-// None of these implement `PartialOrd` or `Ord`.
 struct Enums {
     a: amount::Denomination,
     b: absolute::LockTime,
@@ -482,8 +500,8 @@ struct EnumsHash {
 }
 
 /// A struct that includes all public non-error structs.
-/// C-COMMON-TRAITS: `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// C-COMMON-TRAITS: `Hash`
+#[derive(Hash)]
 // Does not include encoders, decoders, or `amount::Display`.
 struct Structs {
     // Full path to show alphabetic sort order.
