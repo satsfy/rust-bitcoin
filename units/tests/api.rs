@@ -24,8 +24,32 @@ include!("../../include/api_test_tooling.rs");
 
 /// Groups of units public types for testing semantics, groups overlap.
 macro_rules! units {
+    (@apply $types:tt, assert_does_not_implement, $traits:tt, except $except:tt) => {
+        units!(@except $types, false, $traits, $except)
+    };
     (@apply [$($ty:ty),+ $(,)?], assert_implements, $traits:tt) => {
         $(assert_trait_impls!($ty, $traits, true);)+
+    };
+    (@apply [$($ty:ty),+ $(,)?], assert_does_not_implement, $traits:tt) => {
+        $(assert_trait_impls!($ty, $traits, false);)+
+    };
+    (@except [$($ty:ty),+ $(,)?], $want:expr, $traits:tt, [$($ex:ty),+ $(,)?]) => {{
+        // `stringify!` spacing differs between call sites, compare with whitespace removed.
+        let same = |a: &str, b: &str| a.replace(' ', "") == b.replace(' ', "");
+        let members = [$(stringify!($ty)),+];
+        let exceptions = [$(stringify!($ex)),+];
+        for ex in exceptions {
+            assert!(members.iter().any(|m| same(m, ex)), "exception {} is not in the group", ex);
+        }
+        $(assert_trait_impls!(
+            $ty,
+            $traits,
+            $want != exceptions.iter().any(|ex| same(ex, stringify!($ty)))
+        );)+
+    }};
+    // An explicit list of types.
+    ([$($ty:ty),+ $(,)?], $($rest:tt)*) => {
+        units!(@apply [$($ty),+], $($rest)*)
     };
     // Every public type. Other groups are subsets of this one.
     (all, $($rest:tt)*) => {
@@ -106,6 +130,99 @@ macro_rules! units {
             weight::Weight,
         ], $($rest)*)
     };
+    // Every error type, feature gated ones included.
+    (errors, $($rest:tt)*) => {
+        units!(@apply [
+            fee_rate::serde::OverflowError,
+            locktime::absolute::ConversionError,
+            parse_int::ParseIntError,
+            result::NumOpError,
+            amount::MissingDenominationError,
+            amount::ParseDenominationError,
+            amount::PossiblyConfusingDenominationError,
+            amount::UnknownDenominationError,
+            amount::BadPositionError,
+            amount::MissingDigitsError,
+            locktime::absolute::LockTimeDecoderError,
+            locktime::relative::TimeOverflowError,
+            amount::OutOfRangeError,
+            amount::ParseAmountError,
+            amount::ParseError,
+            locktime::absolute::ParseHeightError,
+            pow::ParseTargetError,
+            locktime::absolute::ParseTimeError,
+            pow::ParseWorkError,
+            parse_int::PrefixedHexError,
+            sequence::SequenceDecoderError,
+            amount::TooPreciseError,
+            parse_int::UnprefixedHexError,
+            amount::AmountDecoderError,
+            block::TooBigForRelativeHeightError,
+            block::BlockHeightDecoderError,
+            time::BlockTimeDecoderError,
+            pow::CompactTargetDecoderError,
+            locktime::relative::DisabledLockTimeError,
+            locktime::absolute::IncompatibleHeightError,
+            locktime::relative::IncompatibleHeightError,
+            locktime::absolute::IncompatibleTimeError,
+            locktime::relative::IncompatibleTimeError,
+            amount::InvalidCharacterError,
+            locktime::relative::InvalidHeightError,
+            locktime::relative::InvalidTimeError,
+            locktime::relative::IsSatisfiedByError,
+            locktime::relative::IsSatisfiedByHeightError,
+            locktime::relative::IsSatisfiedByTimeError,
+        ], $($rest)*)
+    };
+    // Every encoder and decoder.
+    (codecs, $($rest:tt)*) => {
+        units!(@apply [
+            amount::AmountDecoder,
+            amount::AmountEncoder<'static>,
+            time::BlockTimeDecoder,
+            time::BlockTimeEncoder<'static>,
+            pow::CompactTargetDecoder,
+            pow::CompactTargetEncoder<'static>,
+            block::BlockHeightDecoder,
+            block::BlockHeightEncoder<'static>,
+            locktime::absolute::LockTimeDecoder,
+            locktime::absolute::LockTimeEncoder<'static>,
+            sequence::SequenceDecoder,
+            sequence::SequenceEncoder<'static>,
+        ], $($rest)*)
+    };
+    // All public non-error enums.
+    (enums, $($rest:tt)*) => {
+        units!(@apply [
+            amount::Denomination,
+            locktime::absolute::LockTime,
+            locktime::relative::LockTime,
+            result::MathOp,
+            result::NumOpResult<Amount>,
+        ], $($rest)*)
+    };
+    // The value types. `amount::Display`, encoders and decoders have groups of their own.
+    (structs, $($rest:tt)*) => {
+        units!(@apply [
+            amount::Amount,
+            amount::SignedAmount,
+            block::BlockHeight,
+            block::BlockHeightInterval,
+            block::BlockMtp,
+            block::BlockMtpInterval,
+            fee_rate::FeeRate,
+            locktime::absolute::Height,
+            locktime::absolute::MedianTimePast,
+            locktime::relative::NumberOf512Seconds,
+            locktime::relative::NumberOfBlocks,
+            pow::CompactTarget,
+            pow::Target,
+            pow::Work,
+            sequence::Sequence,
+            time::BlockTime,
+            weight::Weight,
+        ], $($rest)*)
+    };
 }
 
 #[test]
@@ -118,10 +235,37 @@ fn clone_trait() {
     units!(all, assert_implements, [Clone]);
 }
 
+#[test]
+fn copy_trait() {
+    // C-COMMON-TRAITS: Every value type and enum is `Copy`.
+    // POLICY: Value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: `LockTime` derives `Copy` over its heights and times.
+    units!(structs, assert_implements, [Copy]);
+    units!(enums, assert_implements, [Copy]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // A formatting adapter built by `Amount::display_in`, it is printed and dropped.
+    units!([amount::Display], assert_does_not_implement, [Copy]);
+
+    // POLICY: Errors do not derive `Copy` unless they have to.
+    units!(
+        errors,
+        assert_does_not_implement,
+        [Copy],
+        except [
+            // REQUIRED BY DEPENDENCY: `NumOpResult` is `Copy` and holds it.
+            result::NumOpError,
+        ]
+    );
+
+    // FORBIDDEN BY DEPENDENCY: consensus_encoding codecs derive only `Debug, Clone`.
+    units!(codecs, assert_does_not_implement, [Copy]);
+}
+
 /// A struct that includes all public non-error enums.
-/// C-COMMON-TRAITS: `Copy`, `Clone`, `Debug`, `PartialEq`, `Eq`
+/// C-COMMON-TRAITS: `Debug`, `PartialEq`, `Eq`
 // None of these implement `PartialOrd` or `Ord`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct Enums {
     a: amount::Denomination,
     b: absolute::LockTime,
@@ -152,8 +296,8 @@ impl Enums {
 }
 
 /// A struct that includes all public non-error structs.
-/// C-COMMON-TRAITS: `Copy`, `Clone`, `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// C-COMMON-TRAITS: `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // Does not include encoders, decoders, or `amount::Display`.
 struct Structs {
     // Full path to show alphabetic sort order.
