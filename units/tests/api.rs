@@ -441,6 +441,27 @@ fn eq_trait() {
     units!(codecs, assert_does_not_implement, [Eq]);
 }
 
+#[test]
+fn partial_ord_trait() {
+    // C-COMMON-TRAITS: Every value type implements `PartialOrd`.
+    // POLICY: Value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: Ord
+    units!(structs, assert_implements, [PartialOrd]);
+
+    // FORBIDDEN BY DEPENDENCY: PartialEq
+    units!([amount::Display], assert_does_not_implement, [PartialOrd]);
+
+    // POLICY: Consider carefully before deriving, it bakes variant order into the public API.
+    units!(enums, assert_does_not_implement, [PartialOrd]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Errors are not ordered.
+    units!(errors, assert_does_not_implement, [PartialOrd]);
+
+    // FORBIDDEN BY DEPENDENCY: PartialEq
+    units!(codecs, assert_does_not_implement, [PartialOrd]);
+}
+
 /// A struct that includes all public non-error enums.
 // None of these implement `PartialOrd` or `Ord`.
 struct Enums {
