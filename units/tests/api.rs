@@ -481,6 +481,34 @@ fn ord_trait() {
     units!(codecs, assert_does_not_implement, [Ord]);
 }
 
+#[test]
+fn hash_trait() {
+    // C-COMMON-TRAITS: Every public type SHOULD implement Hash
+    // POLICY: Value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: `LockTime` derives `Hash` over its heights and times.
+    units!(
+        public_types,
+        assert_implements,
+        [Hash],
+        except [
+            // FORBIDDEN BY DEPENDENCY: Eq
+            amount::Display,
+            // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+            // Only labels a failed operation inside an error, never a key.
+            result::MathOp,
+            // FORBIDDEN BY DEPENDENCY: `NumOpError` has no `Hash`.
+            result::NumOpResult<Amount>,
+        ]
+    );
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Nobody uses an error as a key, and every field inside error must implement Hash too.
+    units!(errors, assert_does_not_implement, [Hash]);
+
+    // FORBIDDEN BY DEPENDENCY: Eq
+    units!(codecs, assert_does_not_implement, [Hash]);
+}
+
 /// A struct that includes all public non-error enums.
 struct Enums {
     a: amount::Denomination,
@@ -490,18 +518,7 @@ struct Enums {
     e: result::NumOpResult<Amount>,
 }
 
-/// A struct that includes all public non-error enums that implement `Hash`.
-/// C-COMMON-TRAITS: `Hash`
-#[derive(Hash)]
-struct EnumsHash {
-    a: amount::Denomination,
-    b: absolute::LockTime,
-    c: relative::LockTime,
-}
-
 /// A struct that includes all public non-error structs.
-/// C-COMMON-TRAITS: `Hash`
-#[derive(Hash)]
 // Does not include encoders, decoders, or `amount::Display`.
 struct Structs {
     // Full path to show alphabetic sort order.
