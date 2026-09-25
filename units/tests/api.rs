@@ -262,10 +262,20 @@ fn copy_trait() {
     units!(codecs, assert_does_not_implement, [Copy]);
 }
 
+#[test]
+fn debug_trait() {
+    // C-DEBUG, C-GOOD-ERR: Every public type implements `Debug`.
+    // POLICY: Errors derive `Debug`, value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: std::error::Error
+    // REQUIRED BY DEPENDENCY: `relative::LockTime` derives `Debug` over its heights and times.
+    // REQUIRED BY DEPENDENCY: Errors and `NumOpResult` derive `Debug` over inner errors.
+    units!(all, assert_implements, [Debug]);
+}
+
 /// A struct that includes all public non-error enums.
-/// C-COMMON-TRAITS: `Debug`, `PartialEq`, `Eq`
+/// C-COMMON-TRAITS: `PartialEq`, `Eq`
 // None of these implement `PartialOrd` or `Ord`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 struct Enums {
     a: amount::Denomination,
     b: absolute::LockTime,
@@ -283,21 +293,9 @@ struct EnumsHash {
     c: relative::LockTime,
 }
 
-impl Enums {
-    fn new() -> Self {
-        Self {
-            a: amount::Denomination::Bitcoin,
-            b: absolute::LockTime::Blocks(absolute::Height::MAX),
-            c: relative::LockTime::Blocks(relative::NumberOfBlocks::MAX),
-            d: result::MathOp::Add,
-            e: result::NumOpResult::Valid(Amount::MAX),
-        }
-    }
-}
-
 /// A struct that includes all public non-error structs.
-/// C-COMMON-TRAITS: `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// C-COMMON-TRAITS: `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 // Does not include encoders, decoders, or `amount::Display`.
 struct Structs {
     // Full path to show alphabetic sort order.
@@ -318,37 +316,10 @@ struct Structs {
     p: weight::Weight,
 }
 
-impl Structs {
-    fn max() -> Self {
-        Self {
-            a: Amount::MAX,
-            c: SignedAmount::MAX,
-            d: BlockHeight::MAX,
-            e: BlockHeightInterval::MAX,
-            f: BlockMtp::MAX,
-            g: BlockMtpInterval::MAX,
-            h: FeeRate::MAX,
-            i: absolute::Height::MAX,
-            j: absolute::MedianTimePast::MAX,
-            k: relative::NumberOf512Seconds::MAX,
-            l: relative::NumberOfBlocks::MAX,
-            m: pow::CompactTarget::from_consensus(u32::MAX),
-            n: sequence::Sequence::MAX,
-            o: BlockTime::from_u32(u32::MAX),
-            p: Weight::MAX,
-        }
-    }
-}
-
 /// A struct that includes all public non-error types.
-#[derive(Debug)] // All public types implement Debug (C-DEBUG).
 struct Types {
     a: Enums,
     b: Structs,
-}
-
-impl Types {
-    fn new() -> Self { Self { a: Enums::new(), b: Structs::max() } }
 }
 
 /// A struct that includes all types that implement `Default`.
@@ -364,7 +335,7 @@ struct Default {
 
 /// A struct that includes all public error types (excl. decode errors).
 // These derives are the policy of `rust-bitcoin` not Rust API guidelines.
-#[derive(Debug, PartialEq, Eq)] // All public types implement Debug (C-DEBUG).
+#[derive(PartialEq, Eq)]
 struct Errors {
     a: amount::ParseError,
     b: amount::ParseAmountError,
@@ -410,7 +381,7 @@ struct Decoders {
 
 /// A struct that includes all public decoder error types.
 // These derives are the policy of `rust-bitcoin` not Rust API guidelines.
-#[derive(Debug, PartialEq, Eq)] // All public types implement Debug (C-DEBUG).
+#[derive(PartialEq, Eq)]
 struct DecoderErrors {
     a: amount::error::AmountDecoderError,
     b: block::BlockHeightDecoderError,
@@ -433,31 +404,35 @@ fn c_send_sync() {
 /// C-DEBUG-NONEMPTY: Tests that all public non-error types have non-empty Debug.
 #[test]
 fn c_debug_nonempty() {
-    let t = Types::new();
     // TODO: Test error types.
-    // let errors = Errors::new();
-
-    assert!(!format!("{:?}", t.a.a).is_empty());
-    assert!(!format!("{:?}", t.a.b).is_empty());
-    assert!(!format!("{:?}", t.a.c).is_empty());
-    assert!(!format!("{:?}", t.a.d).is_empty());
-    assert!(!format!("{:?}", t.a.e).is_empty());
-
-    assert!(!format!("{:?}", t.b.a).is_empty());
-    assert!(!format!("{:?}", t.b.c).is_empty());
-    assert!(!format!("{:?}", t.b.d).is_empty());
-    assert!(!format!("{:?}", t.b.e).is_empty());
-    assert!(!format!("{:?}", t.b.f).is_empty());
-    assert!(!format!("{:?}", t.b.g).is_empty());
-    assert!(!format!("{:?}", t.b.h).is_empty());
-    assert!(!format!("{:?}", t.b.i).is_empty());
-    assert!(!format!("{:?}", t.b.j).is_empty());
-    assert!(!format!("{:?}", t.b.k).is_empty());
-    assert!(!format!("{:?}", t.b.l).is_empty());
-    assert!(!format!("{:?}", t.b.m).is_empty());
-    assert!(!format!("{:?}", t.b.n).is_empty());
-    assert!(!format!("{:?}", t.b.o).is_empty());
-    assert!(!format!("{:?}", t.b.p).is_empty());
+    let debug = [
+        format!("{:?}", amount::Denomination::Bitcoin),
+        format!("{:?}", absolute::LockTime::Blocks(absolute::Height::MAX)),
+        format!("{:?}", relative::LockTime::Blocks(relative::NumberOfBlocks::MAX)),
+        format!("{:?}", result::MathOp::Add),
+        format!("{:?}", result::NumOpResult::Valid(Amount::MAX)),
+        format!("{:?}", Amount::MAX),
+        format!("{:?}", Amount::MAX.display_in(amount::Denomination::Bitcoin)),
+        format!("{:?}", SignedAmount::MAX),
+        format!("{:?}", BlockHeight::MAX),
+        format!("{:?}", BlockHeightInterval::MAX),
+        format!("{:?}", BlockMtp::MAX),
+        format!("{:?}", BlockMtpInterval::MAX),
+        format!("{:?}", FeeRate::MAX),
+        format!("{:?}", absolute::Height::MAX),
+        format!("{:?}", absolute::MedianTimePast::MAX),
+        format!("{:?}", relative::NumberOf512Seconds::MAX),
+        format!("{:?}", relative::NumberOfBlocks::MAX),
+        format!("{:?}", pow::CompactTarget::from_consensus(u32::MAX)),
+        format!("{:?}", pow::Target::MAX),
+        format!("{:?}", pow::Target::MAX.to_work()),
+        format!("{:?}", Sequence::MAX),
+        format!("{:?}", BlockTime::from_u32(u32::MAX)),
+        format!("{:?}", Weight::MAX),
+    ];
+    for s in debug {
+        assert!(!s.is_empty());
+    }
 }
 
 /// C-GOOD-ERR: Tests that all public error types implement Display.
