@@ -509,6 +509,18 @@ fn hash_trait() {
     units!(codecs, assert_does_not_implement, [Hash]);
 }
 
+#[test]
+fn send_trait() {
+    // C-SEND-SYNC: Every public type implements `Send`.
+    units!(all, assert_implements, [Send]);
+}
+
+#[test]
+fn sync_trait() {
+    // C-SEND-SYNC: Every public type implements `Sync`.
+    units!(all, assert_implements, [Sync]);
+}
+
 /// A struct that includes all public non-error enums.
 struct Enums {
     a: amount::Denomination,
@@ -543,49 +555,6 @@ struct Structs {
 struct Types {
     a: Enums,
     b: Structs,
-}
-
-/// A struct that includes all public error types (excl. decode errors).
-struct Errors {
-    a: amount::ParseError,
-    b: amount::ParseAmountError,
-    c: amount::OutOfRangeError,
-    d: amount::TooPreciseError,
-    f: amount::MissingDigitsError,
-    g: amount::InvalidCharacterError,
-    h: amount::BadPositionError,
-    i: amount::MissingDenominationError,
-    j: amount::UnknownDenominationError,
-    k: amount::PossiblyConfusingDenominationError,
-    l: block::TooBigForRelativeHeightError,
-    m: fee_rate::serde::OverflowError,
-    n: locktime::absolute::IncompatibleHeightError,
-    o: locktime::absolute::IncompatibleTimeError,
-    p: locktime::absolute::ParseHeightError,
-    q: locktime::absolute::ParseTimeError,
-    r: locktime::absolute::ConversionError,
-    s: locktime::relative::DisabledLockTimeError,
-    t: locktime::relative::IncompatibleHeightError,
-    u: locktime::relative::IncompatibleTimeError,
-    v: locktime::relative::TimeOverflowError,
-    w: locktime::relative::InvalidHeightError,
-    x: locktime::relative::InvalidTimeError,
-    y: parse_int::ParseIntError,
-    z: parse_int::PrefixedHexError,
-    aa: parse_int::UnprefixedHexError,
-    ab: pow::ParseWorkError,
-    ac: pow::ParseTargetError,
-    ad: result::NumOpError,
-}
-
-/// C-SEND-SYNC: Tests that all public types implement `Send` + `Sync`.
-#[test]
-fn c_send_sync() {
-    fn is_send_sync<T: Send + Sync>() {}
-
-    is_send_sync::<Enums>();
-    is_send_sync::<Errors>();
-    is_send_sync::<Structs>();
 }
 
 /// C-DEBUG-NONEMPTY: Tests that all public non-error types have non-empty Debug.
