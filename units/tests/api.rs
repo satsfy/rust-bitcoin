@@ -223,6 +223,28 @@ macro_rules! units {
             weight::Weight,
         ], $($rest)*)
     };
+    // All public decoder types.
+    (decoders, $($rest:tt)*) => {
+        units!(@apply [
+            amount::AmountDecoder,
+            block::BlockHeightDecoder,
+            locktime::absolute::LockTimeDecoder,
+            pow::CompactTargetDecoder,
+            sequence::SequenceDecoder,
+            time::BlockTimeDecoder,
+        ], $($rest)*)
+    };
+    // All public encoder types. The lifetime is a `PhantomData` marker, so `'static` probes work.
+    (encoders, $($rest:tt)*) => {
+        units!(@apply [
+            amount::AmountEncoder<'static>,
+            block::BlockHeightEncoder<'static>,
+            locktime::absolute::LockTimeEncoder<'static>,
+            pow::CompactTargetEncoder<'static>,
+            sequence::SequenceEncoder<'static>,
+            time::BlockTimeEncoder<'static>,
+        ], $($rest)*)
+    };
 }
 
 #[test]
@@ -270,6 +292,47 @@ fn debug_trait() {
     // REQUIRED BY DEPENDENCY: `relative::LockTime` derives `Debug` over its heights and times.
     // REQUIRED BY DEPENDENCY: Errors and `NumOpResult` derive `Debug` over inner errors.
     units!(all, assert_implements, [Debug]);
+}
+
+#[test]
+fn default_trait() {
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // A height, timestamp, target, sequence, weight or fee rate has no value that is
+    // more default than another.
+    units!(
+        structs,
+        assert_does_not_implement,
+        [Default],
+        except [
+            // TODO: satsfy says IMPLEMENT (satisfied already)
+            // Zero is an ok default for an amount.
+            amount::Amount,
+            amount::SignedAmount,
+            // TODO: satsfy says IMPLEMENT (satisfied already)
+            // Zero is an ok default for an interval.
+            block::BlockHeightInterval,
+            block::BlockMtpInterval,
+            locktime::relative::NumberOf512Seconds,
+            locktime::relative::NumberOfBlocks,
+        ]
+    );
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Formatting adapter has nothing to default to.
+    units!([amount::Display], assert_does_not_implement, [Default]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // No enum has a variant that is more default than the others.
+    units!(enums, assert_does_not_implement, [Default]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // There is no default failure.
+    units!(errors, assert_does_not_implement, [Default]);
+
+    // P-DECODERS: Decoders have a default constructor.
+    units!(decoders, assert_implements, [Default]);
+    // FORBIDDEN BY DEPENDENCY: consensus_encoding encoders have no `Default`.
+    units!(encoders, assert_does_not_implement, [Default]);
 }
 
 /// A struct that includes all public non-error enums.
@@ -322,17 +385,6 @@ struct Types {
     b: Structs,
 }
 
-/// A struct that includes all types that implement `Default`.
-#[derive(Debug, Default, PartialEq, Eq)] // C-COMMON-TRAITS: `Default`
-struct Default {
-    a: Amount,
-    b: SignedAmount,
-    c: BlockHeightInterval,
-    d: BlockMtpInterval,
-    e: relative::NumberOf512Seconds,
-    f: relative::NumberOfBlocks,
-}
-
 /// A struct that includes all public error types (excl. decode errors).
 // These derives are the policy of `rust-bitcoin` not Rust API guidelines.
 #[derive(PartialEq, Eq)]
@@ -366,17 +418,6 @@ struct Errors {
     ab: pow::ParseWorkError,
     ac: pow::ParseTargetError,
     ad: result::NumOpError,
-}
-
-/// A struct that includes all public decoder types.
-#[derive(Default)] // All decoders implement `Default` (P-DECODERS).
-struct Decoders {
-    a: amount::AmountDecoder,
-    b: block::BlockHeightDecoder,
-    c: locktime::absolute::LockTimeDecoder,
-    d: pow::CompactTargetDecoder,
-    e: sequence::SequenceDecoder,
-    f: time::BlockTimeDecoder,
 }
 
 /// A struct that includes all public decoder error types.
@@ -696,16 +737,12 @@ fn p_consistent_exports_weight() {
 /// P-DEFAULT-CHANGE: Tests regression for Default implementation values.
 #[test]
 fn p_default_change() {
-    let got: Default = Default::default();
-    let want = Default {
-        a: Amount::ZERO,
-        b: SignedAmount::ZERO,
-        c: BlockHeightInterval::ZERO,
-        d: BlockMtpInterval::ZERO,
-        e: relative::NumberOf512Seconds::ZERO,
-        f: relative::NumberOfBlocks::ZERO,
-    };
-    assert_eq!(got, want);
+    assert_eq!(Amount::default(), Amount::ZERO);
+    assert_eq!(SignedAmount::default(), SignedAmount::ZERO);
+    assert_eq!(BlockHeightInterval::default(), BlockHeightInterval::ZERO);
+    assert_eq!(BlockMtpInterval::default(), BlockMtpInterval::ZERO);
+    assert_eq!(relative::NumberOf512Seconds::default(), relative::NumberOf512Seconds::ZERO);
+    assert_eq!(relative::NumberOfBlocks::default(), relative::NumberOfBlocks::ZERO);
 }
 
 /// P-DECODERS: Tests that decoders implement a constructor method.
