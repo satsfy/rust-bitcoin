@@ -392,6 +392,31 @@ fn display_trait() {
     units!(codecs, assert_does_not_implement, [Display]);
 }
 
+#[test]
+fn partial_eq_trait() {
+    // C-COMMON-TRAITS: Every value type and enum implements `PartialEq`.
+    // POLICY: Value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: Eq, PartialOrd
+    // REQUIRED BY DEPENDENCY: `LockTime` derives `PartialEq` over its heights and times.
+    units!(
+        public_types,
+        assert_implements,
+        [PartialEq],
+        except [
+            // TODO: satsfy is UNDECIDED
+            amount::Display,
+        ]
+    );
+
+    // POLICY: Every error type derives `PartialEq`.
+    // REQUIRED BY DEPENDENCY: Eq
+    // REQUIRED BY DEPENDENCY: Errors and `NumOpResult` derive `PartialEq` over inner errors.
+    units!(errors, assert_implements, [PartialEq]);
+
+    // FORBIDDEN BY DEPENDENCY: consensus_encoding codecs derive only `Debug, Clone`.
+    units!(codecs, assert_does_not_implement, [PartialEq]);
+}
+
 /// A struct that includes all public non-error enums.
 /// C-COMMON-TRAITS: `PartialEq`, `Eq`
 // None of these implement `PartialOrd` or `Ord`.
