@@ -24,6 +24,9 @@ include!("../../include/api_test_tooling.rs");
 
 /// Groups of units public types for testing semantics, groups overlap.
 macro_rules! units {
+    (@apply $types:tt, assert_implements, $traits:tt, except $except:tt) => {
+        units!(@except $types, true, $traits, $except)
+    };
     (@apply $types:tt, assert_does_not_implement, $traits:tt, except $except:tt) => {
         units!(@except $types, false, $traits, $except)
     };
@@ -128,6 +131,34 @@ macro_rules! units {
             time::BlockTimeDecoderError,
             time::BlockTimeEncoder<'static>,
             weight::Weight,
+        ], $($rest)*)
+    };
+    // Every public type that is not an error, encoder or decoder.
+    (public_types, $($rest:tt)*) => {
+        units!(@apply [
+            amount::Amount,
+            result::MathOp,
+            block::BlockHeight,
+            block::BlockHeightInterval,
+            block::BlockMtp,
+            block::BlockMtpInterval,
+            time::BlockTime,
+            pow::CompactTarget,
+            amount::Denomination,
+            amount::Display,
+            fee_rate::FeeRate,
+            locktime::absolute::Height,
+            locktime::absolute::LockTime,
+            locktime::relative::LockTime,
+            locktime::absolute::MedianTimePast,
+            locktime::relative::NumberOf512Seconds,
+            locktime::relative::NumberOfBlocks,
+            result::NumOpResult<Amount>,
+            sequence::Sequence,
+            amount::SignedAmount,
+            pow::Target,
+            weight::Weight,
+            pow::Work,
         ], $($rest)*)
     };
     // Every error type, feature gated ones included.
@@ -335,6 +366,32 @@ fn default_trait() {
     units!(encoders, assert_does_not_implement, [Default]);
 }
 
+#[test]
+fn display_trait() {
+    // TODO: satsfy says IMPLEMENT (satisfied already)
+    // Every value type, enum and formatting adapter prints.
+    units!(
+        public_types,
+        assert_implements,
+        [Display],
+        except [
+            // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+            // There is no canonical unit. `to_sat_per_*` methods make it a caller's choice.
+            fee_rate::FeeRate,
+            // TODO: satsfy IS UNDECIDED
+            result::NumOpResult<Amount>,
+        ]
+    );
+
+    // C-GOOD-ERR: Every error type implements `Display`.
+    // REQUIRED BY DEPENDENCY: std::error::Error
+    units!(errors, assert_implements, [Display]);
+
+    // TODO: satsfy says DO NOT IMPLEMENT (satisfied already)
+    // Encoders and decoders return bytes and are not printed.
+    units!(codecs, assert_does_not_implement, [Display]);
+}
+
 /// A struct that includes all public non-error enums.
 /// C-COMMON-TRAITS: `PartialEq`, `Eq`
 // None of these implement `PartialOrd` or `Ord`.
@@ -474,48 +531,6 @@ fn c_debug_nonempty() {
     for s in debug {
         assert!(!s.is_empty());
     }
-}
-
-/// C-GOOD-ERR: Tests that all public error types implement Display.
-#[test]
-fn c_good_err_display() {
-    fn assert_display<T: core::fmt::Display>() {}
-
-    assert_display::<amount::ParseError>();
-    assert_display::<amount::ParseAmountError>();
-    assert_display::<amount::OutOfRangeError>();
-    assert_display::<amount::TooPreciseError>();
-    assert_display::<amount::MissingDigitsError>();
-    assert_display::<amount::InvalidCharacterError>();
-    assert_display::<amount::BadPositionError>();
-    assert_display::<amount::MissingDenominationError>();
-    assert_display::<amount::UnknownDenominationError>();
-    assert_display::<amount::PossiblyConfusingDenominationError>();
-    assert_display::<block::TooBigForRelativeHeightError>();
-    assert_display::<fee_rate::serde::OverflowError>();
-    assert_display::<locktime::absolute::IncompatibleHeightError>();
-    assert_display::<locktime::absolute::IncompatibleTimeError>();
-    assert_display::<locktime::absolute::ParseHeightError>();
-    assert_display::<locktime::absolute::ParseTimeError>();
-    assert_display::<locktime::absolute::ConversionError>();
-    assert_display::<locktime::relative::DisabledLockTimeError>();
-    assert_display::<locktime::relative::IncompatibleHeightError>();
-    assert_display::<locktime::relative::IncompatibleTimeError>();
-    assert_display::<locktime::relative::TimeOverflowError>();
-    assert_display::<locktime::relative::InvalidHeightError>();
-    assert_display::<locktime::relative::InvalidTimeError>();
-    assert_display::<parse_int::ParseIntError>();
-    assert_display::<parse_int::PrefixedHexError>();
-    assert_display::<parse_int::UnprefixedHexError>();
-    assert_display::<pow::ParseWorkError>();
-    assert_display::<pow::ParseTargetError>();
-    assert_display::<result::NumOpError>();
-    assert_display::<amount::AmountDecoderError>();
-    assert_display::<block::BlockHeightDecoderError>();
-    assert_display::<locktime::absolute::LockTimeDecoderError>();
-    assert_display::<pow::CompactTargetDecoderError>();
-    assert_display::<sequence::SequenceDecoderError>();
-    assert_display::<time::BlockTimeDecoderError>();
 }
 
 /// C-OBJECT: Tests that traits are object-safe where appropriate.
