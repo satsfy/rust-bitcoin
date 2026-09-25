@@ -417,10 +417,32 @@ fn partial_eq_trait() {
     units!(codecs, assert_does_not_implement, [PartialEq]);
 }
 
+#[test]
+fn eq_trait() {
+    // C-COMMON-TRAITS: Every value type and enum implements `Eq`.
+    // POLICY: Value types use the standard derive set.
+    // REQUIRED BY DEPENDENCY: Ord
+    // REQUIRED BY DEPENDENCY: `LockTime` derives `Eq` over its heights and times.
+    units!(
+        public_types,
+        assert_implements,
+        [Eq],
+        except [
+            // FORBIDDEN BY DEPENDENCY: PartialEq
+            amount::Display,
+        ]
+    );
+
+    // POLICY: Every error type derives `Eq`.
+    // REQUIRED BY DEPENDENCY: Errors and `NumOpResult` derive `Eq` over inner errors.
+    units!(errors, assert_implements, [Eq]);
+
+    // FORBIDDEN BY DEPENDENCY: PartialEq
+    units!(codecs, assert_does_not_implement, [Eq]);
+}
+
 /// A struct that includes all public non-error enums.
-/// C-COMMON-TRAITS: `PartialEq`, `Eq`
 // None of these implement `PartialOrd` or `Ord`.
-#[derive(PartialEq, Eq)]
 struct Enums {
     a: amount::Denomination,
     b: absolute::LockTime,
@@ -468,8 +490,6 @@ struct Types {
 }
 
 /// A struct that includes all public error types (excl. decode errors).
-// These derives are the policy of `rust-bitcoin` not Rust API guidelines.
-#[derive(PartialEq, Eq)]
 struct Errors {
     a: amount::ParseError,
     b: amount::ParseAmountError,
@@ -500,18 +520,6 @@ struct Errors {
     ab: pow::ParseWorkError,
     ac: pow::ParseTargetError,
     ad: result::NumOpError,
-}
-
-/// A struct that includes all public decoder error types.
-// These derives are the policy of `rust-bitcoin` not Rust API guidelines.
-#[derive(PartialEq, Eq)]
-struct DecoderErrors {
-    a: amount::error::AmountDecoderError,
-    b: block::BlockHeightDecoderError,
-    c: locktime::absolute::LockTimeDecoderError,
-    d: pow::CompactTargetDecoderError,
-    e: sequence::SequenceDecoderError,
-    f: time::BlockTimeDecoderError,
 }
 
 /// C-SEND-SYNC: Tests that all public types implement `Send` + `Sync`.
