@@ -30,6 +30,9 @@ jobs:
       - uses: ./.github/actions/setup-rbmt
       - name: "Run tests"
         run: cargo rbmt test --toolchain ${{ matrix.toolchain }} --lock-file ${{ matrix.dep }}
+      - name: "Disk usage"
+        if: always()
+        run: df -h / && du -sh target target/debug/incremental ~/.cargo ~/.rustup || true; echo "CARGO_INCREMENTAL=$CARGO_INCREMENTAL"
 
   Check:
     runs-on: ubuntu-24.04
