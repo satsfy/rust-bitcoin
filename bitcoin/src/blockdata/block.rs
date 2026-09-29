@@ -11,7 +11,7 @@ use encoding::CompactSizeEncoder;
 
 use crate::merkle_tree::{TxMerkleNode, WitnessMerkleNode};
 use crate::network::Params;
-use crate::pow::{InvalidCompactTargetError, TargetExt as _};
+
 use crate::prelude::Vec;
 use crate::script::{PushBytesExt as _, ScriptExt as _};
 use crate::transaction::{Coinbase, Transaction, TransactionExt as _};
@@ -458,6 +458,14 @@ mod tests {
             Err(ValidationError::BadProofOfWork) => (),
             _ => panic!("unexpected result from validate_pow"),
         }
+    }
+
+    #[test]
+    fn invalid_bits_header_has_zero_work() {
+        let mut header = header();
+        header.bits = CompactTarget::from_consensus(0x0492_3456);
+        assert!(header.target().is_err());
+        assert_eq!(header.work(), Work::ZERO);
     }
 
     fn header() -> Header {
