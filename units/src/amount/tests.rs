@@ -395,6 +395,28 @@ fn div_by_fee_rate_floor_preserves_mvb_precision() {
 
 #[test]
 #[cfg(feature = "alloc")]
+fn div_by_fee_rate_ceil_preserves_mvb_precision() {
+    // `div_by_fee_rate_ceil` must compute the minimum weight at full FeeRate precision.
+    let budget = Amount::from_sat(100).unwrap();
+    let rate = FeeRate::from_sat_per_kvb_u32(1);
+    let weight = budget.div_by_fee_rate_ceil(rate).unwrap();
+    assert!(
+        weight >= Weight::from_wu(400_000),
+        "minimum sufficient weight for 100 sat at 1 sat/kvb is 400_000 wu, got {} wu",
+        weight.to_wu()
+    );
+
+    // 1001 sat/kvb is 1001 sat per 4,000,000 wu, so a 1000 sat budget requires at least
+    // ceil(1000 * 4,000,000 / 1,001,000) = ceil(3996.0039...) = 3997 wu.
+    let weight = sat(1000).div_by_fee_rate_ceil(FeeRate::from_sat_per_kvb_u32(1001)).unwrap();
+    assert_eq!(weight, Weight::from_wu(3997));
+
+    // A tiny fee rate over the maximum amount overflows Weight and must error.
+    assert!(Amount::MAX.div_by_fee_rate_ceil(FeeRate::from_sat_per_mvb(1)).is_error());
+}
+
+#[test]
+#[cfg(feature = "alloc")]
 fn floating_point() {
     use super::Denomination as D;
     let f = Amount::from_float_in;
@@ -471,6 +493,18 @@ fn parsing() {
         })))
     );
     assert_eq!(
+        p(".", den_btc),
+        Err(amt_err(ParseAmountErrorInner::MissingDigits(MissingDigitsError {
+            kind: MissingDigitsKind::OnlyDot { with_minus_sign: false }
+        })))
+    );
+    assert_eq!(
+        sp("-.", den_btc),
+        Err(amt_err(ParseAmountErrorInner::MissingDigits(MissingDigitsError {
+            kind: MissingDigitsKind::OnlyDot { with_minus_sign: true }
+        })))
+    );
+    assert_eq!(
         p("-1.0x", den_btc),
         Err(amt_err(ParseAmountErrorInner::InvalidCharacter(InvalidCharacterError {
             invalid_char: 'x',
@@ -536,6 +570,16 @@ fn parsing() {
         ),
         Ok(Amount::ONE_BTC),
     );
+}
+
+#[test]
+fn parsing_rejects_malformed_numeric_separators() {
+    use super::Denomination as D;
+
+    for input in [".", "._", "0_", "1_", "1_.0", "1._0"] {
+        assert!(Amount::from_str_in(input, D::Bitcoin).is_err(), "accepted {input:?}");
+        assert!(SignedAmount::from_str_in(input, D::Bitcoin).is_err(), "accepted {input:?}");
+    }
 }
 
 #[test]
@@ -893,7 +937,7 @@ fn from_str() {
     ok_scase("-21000000 BTC", SignedAmount::MIN);
     ok_case("1_000 sat", sat(1000));
     ok_case("1_0_0_0_0_0_0 satoshi", sat(1_000_000));
-    ok_scase("-0_._0_10_00 BTC", ssat(-1_000_000));
+    ok_scase("-0.0_10_00 BTC", ssat(-1_000_000));
 }
 
 #[test]
