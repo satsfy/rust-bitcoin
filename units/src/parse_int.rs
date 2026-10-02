@@ -51,8 +51,8 @@ mod sealed {
 ///
 /// # Errors
 ///
-/// On error this function allocates to copy the input string into the error return. Only a bounded
-/// prefix of an over-long input is retained.
+/// On error this function copies the input string into the error return when `alloc` is enabled,
+/// retaining only a bounded prefix of an over-long input.
 #[inline]
 pub fn int_from_str<T: Integer>(s: &str) -> Result<T, ParseIntError> { int(s) }
 
@@ -94,7 +94,7 @@ fn int<T: Integer, S: AsRef<str> + error::BoundedInput>(s: S) -> Result<T, Parse
     })
 }
 
-/// Implements standard parsing traits for `$type` by calling `parse::int`.
+/// Implements standard parsing traits for `$to` by calling the `parse_int::int_from_*` functions.
 ///
 /// Once the string is converted to an integer the infallible conversion function `fn` is used to
 /// construct the type `to`.
@@ -111,7 +111,7 @@ fn int<T: Integer, S: AsRef<str> + error::BoundedInput>(s: S) -> Result<T, Parse
 ///
 /// # Parameters
 ///
-/// * `to` - the type converted to e.g., `impl From<&str> for $to`.
+/// * `to` - the type converted to e.g., `impl TryFrom<&str> for $to`.
 /// * `inner` - the inner integer type to be provided to `fn`. Must implement [`Integer`].
 /// * `fn`: the infallible conversion function to call to convert from an integer.
 ///
@@ -183,7 +183,7 @@ pub(crate) use impl_parse_str_from_int_infallible;
 ///
 /// # Parameters
 ///
-/// * `to` - the type converted to e.g., `impl From<&str> for $to`.
+/// * `to` - the type converted to e.g., `impl TryFrom<&str> for $to`.
 /// * `err` - the error type returned by `$inner_fn` (implies returned by [`FromStr`] and
 ///   [`TryFrom`]).
 /// * `inner_fn`: the fallible conversion function to call to convert from a string reference.
@@ -394,16 +394,21 @@ pub(crate) fn hex_u256_unchecked(s: &str) -> Result<internals::u256::U256, Parse
             })
             .map(internals::u256::U256::from);
     }
+    // Report errors against the whole input, not the half that failed.
+    let whole_input = |error: ParseIntError| {
+        let (input, truncated) = error::BoundedInput::into_bounded_input(s);
+        ParseIntError { input, bits: 256, is_signed: false, truncated, source: error.source }
+    };
     let (high, low) = if digits.len() <= 32 {
-        let low = hex_u128_unchecked(s)?;
+        let low = hex_u128_unchecked(s).map_err(whole_input)?;
         (0, low)
     } else {
         let high_len = digits.len() - 32;
         let high_s = &digits[..high_len];
         let low_s = &digits[high_len..];
 
-        let high = hex_u128_unchecked(high_s)?;
-        let low = hex_u128_unchecked(low_s)?;
+        let high = hex_u128_unchecked(high_s).map_err(whole_input)?;
+        let low = hex_u128_unchecked(low_s).map_err(whole_input)?;
         (high, low)
     };
 
