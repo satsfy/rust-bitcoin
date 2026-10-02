@@ -11,7 +11,8 @@
 //!
 //! *If you are using the `bitcoin` crate then you do not need to access this crate directly.*
 //!
-//! Everything here is re-exported in `bitcoin` at the same path. Also the same re-exports exist in
+//! The types here are re-exported in `bitcoin` at the same path, the `locktime::absolute` and
+//! `weight` module level constants and functions are not. Everything is re-exported in
 //! `bitcoin-primitives` if you are using that crate instead of `bitcoin`.
 //!
 //! Libraries that only need the types present in this crate should depend only on this crate, not

@@ -6,7 +6,7 @@
 
 /// Implements a mathematical operation for various reference combinations.
 ///
-/// Given `$ty`, assumes the `$op_trait<$other_ty>` trait is implemented on it,
+/// Given `$ty`, implements the `$op_trait<$other_ty>` trait on it from the supplied body,
 /// and implements the same trait with the full matrix of `&$ty` and `&$other_ty`:
 ///
 /// - `Add<$other_ty> for &$ty`

@@ -22,16 +22,16 @@
 ///   the error type is a single value newtype that directly wraps the inner error.
 ///
 /// Both `fn new` and `fn map_push_bytes_err` are independently optional, giving four possible forms.
-/// Due to limitations in macros, the order must be `new`, `push_bytes_err`, then `end`.
+/// Due to limitations in macros, the order must be `new`, `map_push_bytes_err`, then `end`.
 ///
 /// ## Attributes
 ///
 /// You can add arbitrary doc comments or attributes to the struct definition and the new function.
-/// Note that the new function always has #[inline].
+/// Note that the new function always has `#[inline]`.
 ///
 /// # Examples
 ///
-/// Minimal form (no `new`, no `push_bytes_err`):
+/// Minimal form (no `new`, no `map_push_bytes_err`):
 ///
 /// ```ignore
 /// decoder_newtype! {
