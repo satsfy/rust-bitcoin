@@ -155,7 +155,7 @@ pub mod as_sat_per_kwu_floor {
 pub mod as_sat_per_vb_floor {
     //! Serialize and deserialize [`FeeRate`] denominated in satoshis per virtual byte.
     //!
-    //! When serializing use floor division to convert per kwu to per virtual byte.
+    //! When serializing use floor division to convert sat/MvB to per virtual byte.
     //! Use with `#[serde(with = "fee_rate::serde::as_sat_per_vb_floor")]`.
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -181,7 +181,7 @@ pub mod as_sat_per_vb_floor {
     pub mod opt {
         //! Serialize and deserialize [`Option<FeeRate>`] denominated in satoshis per virtual byte.
         //!
-        //! When serializing use floor division to convert per kwu to per virtual byte.
+        //! When serializing use floor division to convert sat/MvB to per virtual byte.
         //! Use with `#[serde(with = "fee_rate::serde::as_sat_per_vb_floor::opt")]`.
 
         use core::fmt;
@@ -230,7 +230,7 @@ pub mod as_sat_per_vb_floor {
     pub mod vec {
         //! Serialize and deserialize [`Vec<FeeRate>`] denominated in satoshis per virtual byte.
         //!
-        //! When serializing use floor division to convert per kwu to per virtual byte.
+        //! When serializing use floor division to convert sat/MvB to per virtual byte.
         //! Use with `#[serde(with = "fee_rate::serde::as_sat_per_vb_floor::vec")]`.
 
         use alloc::vec::Vec;
@@ -283,7 +283,7 @@ pub mod as_sat_per_vb_floor {
 pub mod as_sat_per_vb_ceil {
     //! Serialize and deserialize [`FeeRate`] denominated in satoshis per virtual byte.
     //!
-    //! When serializing use ceil division to convert per kwu to per virtual byte.
+    //! When serializing use ceil division to convert sat/MvB to per virtual byte.
     //! Use with `#[serde(with = "fee_rate::serde::as_sat_per_vb_ceil")]`.
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -309,7 +309,7 @@ pub mod as_sat_per_vb_ceil {
     pub mod opt {
         //! Serialize and deserialize [`Option<FeeRate>`] denominated in satoshis per virtual byte.
         //!
-        //! When serializing use ceil division to convert per kwu to per virtual byte.
+        //! When serializing use ceil division to convert sat/MvB to per virtual byte.
         //! Use with `#[serde(with = "fee_rate::serde::as_sat_per_vb_ceil::opt")]`.
 
         use core::fmt;
@@ -358,7 +358,7 @@ pub mod as_sat_per_vb_ceil {
     pub mod vec {
         //! Serialize and deserialize [`Vec<FeeRate>`] denominated in satoshis per virtual byte.
         //!
-        //! When serializing use ceil division to convert per kwu to per virtual byte.
+        //! When serializing use ceil division to convert sat/MvB to per virtual byte.
         //! Use with `#[serde(with = "fee_rate::serde::as_sat_per_vb_ceil::vec")]`.
 
         use alloc::vec::Vec;

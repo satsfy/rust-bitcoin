@@ -81,6 +81,11 @@ impl Weight {
     }
 
     /// Constructs a new [`Weight`] from virtual bytes without an overflow check.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, if `vb` times [`Self::WITNESS_SCALE_FACTOR`] overflows. In release builds
+    /// the multiplication wraps.
     #[inline]
     pub const fn from_vb_unchecked(vb: u64) -> Self {
         Self::from_wu(vb * Self::WITNESS_SCALE_FACTOR)

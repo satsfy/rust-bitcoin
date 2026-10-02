@@ -379,7 +379,7 @@ pub enum MathOp {
     Sub,
     /// Multiplication failed ([`core::ops::Mul`] resulted in an invalid value).
     Mul,
-    /// Division failed ([`core::ops::Div`] attempted div-by-zero).
+    /// Division failed ([`core::ops::Div`] attempted div-by-zero or resulted in an invalid value).
     Div,
     /// Calculating the remainder failed ([`core::ops::Rem`] attempted div-by-zero).
     Rem,

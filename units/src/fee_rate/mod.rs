@@ -19,7 +19,7 @@ mod encapsulate {
     /// Fee rate.
     ///
     /// This is an integer newtype representing fee rate. It provides protection
-    /// against mixing up the types, conversion functions, and basic formatting.
+    /// against mixing up the types and conversion functions.
     ///
     /// NOTE: [`FeeRate`] explicitly does not have any format/display trait implementations, as it
     /// doesn't have a standard unit for measure. Users are expected to format it on their own by
