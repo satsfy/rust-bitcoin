@@ -84,7 +84,8 @@ mod sealed {
 }
 
 pub mod as_sat {
-    //! Serialize and deserialize [`Amount`] and [`SignedAmount`] as real numbers denominated in satoshi.
+    //! Serialize and deserialize [`Amount`] and [`SignedAmount`] as integers denominated in
+    //! satoshi.
     //!
     //! Use with `#[serde(with = "amount::serde::as_sat")]`.
     //!
@@ -181,8 +182,8 @@ pub mod as_sat {
     }
 
     pub mod opt {
-        //! Serialize and deserialize [`Option<Amount>`] and [`Option<SignedAmount>`] as real
-        //! numbers denominated in satoshi.
+        //! Serialize and deserialize [`Option<Amount>`] and [`Option<SignedAmount>`] as integers
+        //! denominated in satoshi.
         //!
         //! Use with `#[serde(default, with = "amount::serde::as_sat::opt")]`.
 
@@ -254,7 +255,7 @@ pub mod as_sat {
 
     #[cfg(feature = "alloc")]
     pub mod vec {
-        //! Serialize and deserialize [`Vec<Amount>`] and [`Vec<SignedAmount>`] as real numbers
+        //! Serialize and deserialize [`Vec<Amount>`] and [`Vec<SignedAmount>`] as integers
         //! denominated in satoshi.
         //!
         //! Use with `#[serde(with = "amount::serde::as_sat::vec")]`.
@@ -291,9 +292,9 @@ pub mod as_sat {
         {
             fn expecting<T: AmountOps>() -> &'static str {
                 if T::is_signed(super::super::Token) {
-                    "an sequence of integers between -2100000000000000 and 2100000000000000 inclusive"
+                    "a sequence of integers between -2100000000000000 and 2100000000000000 inclusive"
                 } else {
-                    "an sequence of integers between 0 and 2100000000000000 inclusive"
+                    "a sequence of integers between 0 and 2100000000000000 inclusive"
                 }
             }
 

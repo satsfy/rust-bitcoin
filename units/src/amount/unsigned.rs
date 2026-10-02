@@ -156,7 +156,7 @@ impl Amount {
     ///
     /// # Errors
     ///
-    /// If the amount is too precise, negative, or greater than 21,000,000.
+    /// If the amount is too precise, negative, or greater than [`Amount::MAX`] (21,000,000 BTC).
     ///
     /// # Examples
     ///
@@ -200,7 +200,7 @@ impl Amount {
     ///
     /// # Errors
     ///
-    /// If the amount is too precise, negative, or greater than 21,000,000.
+    /// If the amount is too precise, negative, or greater than [`Amount::MAX`] (21,000,000 BTC).
     #[inline]
     pub fn from_str_in(s: &str, denom: Denomination) -> Result<Self, ParseAmountError> {
         let (is_neg, amount) =
@@ -479,6 +479,11 @@ impl Amount {
     ///
     /// Be aware that integer division loses the remainder if no exact division
     /// can be made. See also [`Self::div_by_weight_ceil`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `weight` is zero, or if the resulting fee rate does not fit in a
+    /// [`FeeRate`].
     #[inline]
     pub const fn div_by_weight_floor(self, weight: Weight) -> NumOpResult<FeeRate> {
         let wu = weight.to_wu() as u128;
@@ -500,6 +505,11 @@ impl Amount {
     /// Be aware that integer division loses the remainder if no exact division
     /// can be made. This method rounds up ensuring the transaction fee rate is
     /// sufficient. See also [`Self::div_by_weight_floor`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `weight` is zero, or if the resulting fee rate does not fit in a
+    /// [`FeeRate`].
     ///
     /// # Examples
     ///
@@ -615,7 +625,8 @@ impl FromStr for Amount {
 
     /// Parses a string slice where the slice includes a denomination.
     ///
-    /// If the returned value would be zero or negative zero, then no denomination is required.
+    /// If the returned value would be zero, then no denomination is required. Negative zero is
+    /// rejected.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let result = Self::from_str_with_denomination(s);
 
