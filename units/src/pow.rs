@@ -149,9 +149,9 @@ impl Sub for Work {
 
 /// A 256 bit integer representing target.
 ///
-/// The SHA-256 hash of a block's header must be lower than or equal to the current target for the
-/// block to be accepted by the network. The lower the target, the more difficult it is to generate
-/// a block. (See also [`Work`].)
+/// The double SHA-256 hash of a block's header must be lower than or equal to the current target
+/// for the block to be accepted by the network. The lower the target, the more difficult it is to
+/// generate a block. (See also [`Work`].)
 ///
 /// [`Target`] does not limit its value to the maximum attainable value for any network when it
 /// is constructed. If you need to enforce that invariant, you should compare the constructed value
@@ -163,14 +163,15 @@ impl Sub for Work {
 pub struct Target(U256);
 
 impl Target {
-    /// When parsing nBits, Bitcoin Core converts a negative target threshold into a target of zero.
+    /// The zero target. Bitcoin Core rejects a header whose nBits decode to it.
     pub const ZERO: Self = Self(U256::ZERO);
 
-    /// The maximum possible target.
+    /// The target of difficulty 1.
     ///
     /// This value is used to calculate difficulty, which is defined as how difficult the current
-    /// target makes it to find a block relative to how difficult it would be at the highest
-    /// possible target. Remember highest target == lowest difficulty.
+    /// target makes it to find a block relative to how difficult it would be at this target.
+    /// Remember highest target == lowest difficulty. It is not the largest representable target,
+    /// [`Self::from_compact`] and [`Self::MAX_ATTAINABLE_REGTEST`] both exceed it.
     ///
     /// ref: <https://en.bitcoin.it/wiki/Target>
     // In Bitcoind this is ~(u256)0 >> 32 stored as a floating-point type so it gets truncated, hence
@@ -276,7 +277,7 @@ impl Target {
     ///
     /// "Work" is defined as the work done to mine a block with this target value (recorded in the
     /// block header in compact form as nBits). This is not the same as the difficulty to mine a
-    /// block with this target (see `Self::difficulty`).
+    /// block with this target (see `difficulty` on the `Target` extension trait in `bitcoin`).
     ///
     /// When validating a chain, Bitcoin Core counts a zero target as zero work. Use
     /// `.unwrap_or(Work::ZERO)` to match that behavior.
