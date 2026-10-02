@@ -266,11 +266,9 @@ impl LockTime {
     /// If `self` is a blockheight based lock then it is checked against `height` and if `self` is a
     /// blocktime based lock it is checked against `time`.
     ///
-    /// A 'timelock constraint' refers to the `n` from `n OP_CHECKLOCKTIMEVERIFY`, this constraint
-    /// is satisfied if a transaction with `nLockTime` set to `height`/`time` is valid.
-    ///
     /// If `height` and `mtp` represent the current chain tip then a transaction with this
-    /// locktime can be broadcast for inclusion in the next block.
+    /// locktime can be broadcast for inclusion in the next block. To check the `n` from
+    /// `n OP_CHECKLOCKTIMEVERIFY` against a transaction's `nLockTime` use [`Self::is_implied_by`].
     ///
     /// If you do not have, or do not wish to calculate, both parameters consider using:
     ///
@@ -390,8 +388,6 @@ impl LockTime {
     ///     _ => panic!("invalid comparison"),
     /// };
     ///
-    /// // Or, if you have Rust 1.53 or greater
-    /// // let is_satisfied = n.partial_cmp(&lock_time).expect("invalid comparison").is_le();
     /// ```
     #[inline]
     pub fn to_consensus_u32(self) -> u32 {

@@ -431,8 +431,8 @@ impl BlockMtpInterval {
     ///
     /// # Errors
     ///
-    /// Errors if the MTP is out-of-range (in excess of 512 times `u16::MAX` seconds, or about
-    /// 388 days) for a time-based relative locktime.
+    /// Errors if the MTP is out-of-range (in excess of 512 times `u16::MAX` plus 511 seconds, or
+    /// about 388 days) for a time-based relative locktime.
     #[inline]
     pub const fn to_relative_mtp_interval_floor(
         self,

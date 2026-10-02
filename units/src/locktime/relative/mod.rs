@@ -211,11 +211,12 @@ impl LockTime {
     /// * `chain_tip_height`: The current height of the blockchain.
     /// * `chain_tip_mtp`: The current MTP (i.e. median of the 11 latest blocks).
     /// * `utxo_mined_at_height`: `Some` height if mined, `None` if UTXO may go in the next block.
-    /// * `utxo_mined_at_mtp`: `Some` MTP if mined, `None` if UTXO may go in the next block.
+    /// * `utxo_mined_at_mtp`: `Some` MTP of the block before the one that mined the UTXO (BIP 68),
+    ///   `None` if UTXO may go in the next block.
     ///
     /// # Errors
     ///
-    /// If `chain_tip` is not _after_ `utxo_mined_at` i.e., if you get the args mixed up.
+    /// If `chain_tip` is _before_ `utxo_mined_at` i.e., if you get the args mixed up.
     #[inline]
     pub fn is_satisfied_by(
         self,
@@ -243,7 +244,8 @@ impl LockTime {
     ///
     /// # Errors
     ///
-    /// Returns an error if this lock is not lock-by-block-count.
+    /// Returns an error if this lock is not lock-by-block-count, or if `chain_tip` is _before_
+    /// `utxo_mined_at`.
     #[inline]
     pub fn is_satisfied_by_height(
         self,
@@ -264,11 +266,13 @@ impl LockTime {
     /// # Arguments
     ///
     /// * `chain_tip`: The current MTP (i.e. median of the 11 latest blocks).
-    /// * `utxo_mined_at`: `Some` MTP if mined, `None` if UTXO may go in the next block.
+    /// * `utxo_mined_at`: `Some` MTP of the block before the one that mined the UTXO (BIP 68),
+    ///   `None` if UTXO may go in the next block.
     ///
     /// # Errors
     ///
-    /// Returns an error if this lock is not lock-by-time.
+    /// Returns an error if this lock is not lock-by-time, or if `chain_tip` is _before_
+    /// `utxo_mined_at`.
     #[inline]
     pub fn is_satisfied_by_time(
         self,
@@ -470,7 +474,7 @@ impl NumberOfBlocks {
     ///
     /// # Errors
     ///
-    /// If `chain_tip` is not valid for `utxo_mined_at` i.e., if you get the args mixed up.
+    /// If `chain_tip` is _before_ `utxo_mined_at` i.e., if you get the args mixed up.
     #[inline]
     pub fn is_satisfied_by(
         self,
@@ -615,12 +619,13 @@ impl NumberOf512Seconds {
     ///
     /// # Arguments
     ///
-    /// * `chain_tip_mtp`: The current MTP (i.e. median of the 11 latest blocks).
-    /// * `utxo_mined_at`: `Some` MTP if mined, `None` if UTXO may go in the next block.
+    /// * `chain_tip`: The current MTP (i.e. median of the 11 latest blocks).
+    /// * `utxo_mined_at`: `Some` MTP of the block before the one that mined the UTXO (BIP 68),
+    ///   `None` if UTXO may go in the next block.
     ///
     /// # Errors
     ///
-    /// If `chain_tip` is not _after_ `utxo_mined_at` i.e., if you get the args mixed up.
+    /// If `chain_tip` is _before_ `utxo_mined_at` i.e., if you get the args mixed up.
     #[inline]
     pub fn is_satisfied_by(
         self,

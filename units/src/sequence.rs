@@ -130,8 +130,8 @@ impl Sequence {
     ///
     /// # Errors
     ///
-    /// If the input string is not a valid hex representation of a locktime or it does not include
-    /// the `0x` prefix.
+    /// If the input string is not a valid hex representation of a sequence number or it does not
+    /// include the `0x` prefix.
     #[inline]
     pub fn from_hex(s: &str) -> Result<Self, PrefixedHexError> {
         let lock_time = parse_int::hex_u32_prefixed(s)?;
@@ -142,8 +142,8 @@ impl Sequence {
     ///
     /// # Errors
     ///
-    /// If the input string is not a valid hex representation of a locktime or if it includes the
-    /// `0x` prefix.
+    /// If the input string is not a valid hex representation of a sequence number or if it
+    /// includes the `0x` prefix.
     #[inline]
     pub fn from_unprefixed_hex(s: &str) -> Result<Self, UnprefixedHexError> {
         let lock_time = parse_int::hex_u32_unprefixed(s)?;
