@@ -21,14 +21,15 @@ jobs:
         toolchain: [stable, msrv]
         dep: [minimal, recent]
     steps:
-      # Cleaning up github bloat so that test feature artifacts don't run out of disk.
-      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-rbmt
       - name: "Run tests"
         run: cargo rbmt test --toolchain ${{ matrix.toolchain }} --lock-file ${{ matrix.dep }}
+      - name: "Disk usage"
+        if: always()
+        run: df -h / && du -sh target ~/.cargo ~/.rustup || true
 
   Check:
     runs-on: ubuntu-24.04
