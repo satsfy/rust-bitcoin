@@ -62,7 +62,7 @@ impl FeeRate {
     /// The minimum fee rate required to broadcast a transaction.
     ///
     /// The value matches the default Bitcoin Core policy at the time of library release.
-    pub const BROADCAST_MIN: Self = Self::from_sat_per_vb_u32(1);
+    pub const BROADCAST_MIN: Self = Self::from_sat_per_kvb_u32(100);
 
     /// The fee rate used to compute dust amount.
     pub const DUST: Self = Self::from_sat_per_vb_u32(3);
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(FeeRate::ZERO.to_sat_per_kwu_floor(), 0);
         assert_eq!(FeeRate::MIN.to_sat_per_kwu_floor(), u64::MIN);
         assert_eq!(FeeRate::MAX.to_sat_per_kwu_floor(), u64::MAX / 4_000);
-        assert_eq!(FeeRate::BROADCAST_MIN.to_sat_per_kwu_floor(), 250);
+        assert_eq!(FeeRate::BROADCAST_MIN.to_sat_per_kwu_floor(), 25);
         assert_eq!(FeeRate::DUST.to_sat_per_kwu_floor(), 750);
     }
 
