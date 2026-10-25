@@ -1391,7 +1391,8 @@ pub mod error {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
                 Self::Io(error) => write_err!(f, "failed to write sighash data"; error),
-                Self::Sighash(error) => write_err_unchecked_source!(f, "failed to compute sighash data"; error),
+                Self::Sighash(error) =>
+                    write_err_unchecked_source!(f, "failed to compute sighash data"; error),
             }
         }
     }
