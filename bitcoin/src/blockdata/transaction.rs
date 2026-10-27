@@ -83,7 +83,7 @@ internal_macros::define_extension_trait! {
 /// Base weight excludes the witness and script.
 // We need to use this const here but do not want to make it public in `primitives::TxIn`.
 const TX_IN_BASE_WEIGHT: Weight =
-    Weight::from_vb_unchecked(OutPoint::SIZE as u64 + Sequence::SIZE as u64);
+    Weight::from_wu((OutPoint::SIZE + Sequence::SIZE) as u64 * Weight::WITNESS_SCALE_FACTOR);
 
 internal_macros::define_extension_trait! {
     /// Extension functionality for the [`TxIn`] type.

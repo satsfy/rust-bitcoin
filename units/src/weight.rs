@@ -80,12 +80,6 @@ impl Weight {
         Some(Self::from_wu(wu))
     }
 
-    /// Constructs a new [`Weight`] from virtual bytes without an overflow check.
-    #[inline]
-    pub const fn from_vb_unchecked(vb: u64) -> Self {
-        Self::from_wu(vb * Self::WITNESS_SCALE_FACTOR)
-    }
-
     /// Constructs a new [`Weight`] from a prefixed hex string.
     ///
     /// The hex string once parsed is assumed to represent weight units.
@@ -404,18 +398,6 @@ mod tests {
     fn from_vb_overflows() {
         assert!(Weight::from_vb(u64::MAX).is_none());
     }
-
-    #[test]
-    fn from_vb_unchecked() {
-        let got = Weight::from_vb_unchecked(1);
-        let want = Weight::from_wu(4);
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic = "attempt to multiply with overflow"]
-    fn from_vb_unchecked_panic() { Weight::from_vb_unchecked(u64::MAX); }
 
     #[test]
     #[cfg(feature = "alloc")]
