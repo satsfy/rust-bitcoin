@@ -1,8 +1,8 @@
+# TEST STUB. Same permissions block as the PR, cargo steps replaced by an echo,
+# to show create-pull-request works without id-token.
 name: Update Nightly rustc
 on:
-  schedule:
-    - cron: "5 0 * * 6" # Saturday at 00:05
-  workflow_dispatch: # allows manual triggering
+  workflow_dispatch:
 permissions: {}
 jobs:
   format:
@@ -11,30 +11,21 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    strategy:
-      fail-fast: false
-      matrix:
-        # Update toolchain on master and LTS branches.
-        branch: [master, 0.32.xxx, 0.32.xx]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ matrix.branch }}
           persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
-      - name: Update nightly toolchain in Cargo.toml
+      - name: Fake nightly update
         run: |
-          cargo rbmt toolchains --update-nightly
-          echo "nightly_version=$(cargo rbmt toolchains --nightly)" >> $GITHUB_ENV
+          echo "nightly-2026-10-31" > ci-test/nightly
+          echo "nightly_version=nightly-2026-10-31" >> "$GITHUB_ENV"
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.APOELSTRA_CREATE_PR_TOKEN }}
-          base: ${{ matrix.branch }}
+          base: ci-test-7139
           author: Update Nightly Rustc Bot <bot@example.com>
           committer: Update Nightly Rustc Bot <bot@example.com>
-          title: Automated weekly update to rustc (to ${{ env.nightly_version }}) on ${{ matrix.branch }}
-          body: |
-           Automated update to Cargo.toml workspace metadata by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
-          commit-message: Automated update to rustc ${{ env.nightly_version }}
-          branch: create-pull-request/weekly-nightly-update-${{ matrix.branch }}
+          title: "ci-test: automated nightly update (${{ env.nightly_version }})"
+          body: test run of the nightly update workflow without id-token
+          commit-message: "ci-test: automated update to rustc ${{ env.nightly_version }}"
+          branch: ci-test/weekly-nightly-update

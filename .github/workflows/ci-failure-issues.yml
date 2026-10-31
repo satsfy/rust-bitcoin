@@ -11,7 +11,7 @@ on:
     types:
       - completed
     branches:
-      - master
+      - ci-test-7139
 
 permissions:
   issues: write
