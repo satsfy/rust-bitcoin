@@ -35,7 +35,7 @@ jobs:
             ~/.cargo/.crates2.json
             target
           key: cache-fuzz-v2-${{ hashFiles('**/Cargo.toml','**/Cargo.lock') }}
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: Install cargo-fuzz
         run: cargo install --locked --version 0.13.2 cargo-fuzz
       - name: Fuzz shard ${{ matrix.shard_id }}

@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Read compiler version"
         id: rustc
         run: |
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Run ${{ matrix.task }}"
         run: cargo rbmt ${{ matrix.task }}
 
@@ -96,7 +96,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # History required for API diff.
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Run API check"
         id: api_check
         run: |
@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Check criterion benches"
         working-directory: benches
         run: cargo rbmt run --toolchain stable --lockfile existing -- bench -- --test
@@ -140,7 +140,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # History required for version bump detection.
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Run pre-release checks"
         run: cargo rbmt prerelease --baseline ${{ github.event.pull_request.base.sha || github.event.before }}
 
@@ -152,7 +152,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Set up QEMU"
         run: sudo apt-get update && sudo apt-get install -y qemu-system-arm
       - name: "Run bitcoin/embedded"
@@ -182,7 +182,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Install cross"
         run: cargo install cross --locked --git https://github.com/cross-rs/cross --rev 64b5bb4d3d34de062552b9a2093affe77b4ad16a
       - name: "Run cross test"
@@ -314,7 +314,7 @@ jobs:
         with:
           persist-credentials: false
       # Provides the cargo-rbmt binary scripts expect.
-      - uses: ./.github/actions/setup-rbmt
+      - uses: $/.github/actions/setup-rbmt
       - name: "Run primitives API checker script"
         run: |
           contrib/generate-primitives-re-export-test.sh && (cd ./primitives && cargo test --all-features)
