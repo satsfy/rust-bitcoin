@@ -13,8 +13,7 @@ on:
     branches:
       - master
 
-permissions:
-  issues: write
+permissions: {}
 
 concurrency:
   group: ci-failure-issues-${{ github.event.workflow_run.name }}
@@ -24,6 +23,8 @@ jobs:
   sync-issue:
     if: ${{ contains(fromJson('["failure","success"]'), github.event.workflow_run.conclusion) }}
     runs-on: ubuntu-24.04
+    permissions:
+      issues: write
 
     steps:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
