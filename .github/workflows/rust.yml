@@ -61,7 +61,7 @@ jobs:
           fetch-depth: 0 # History required for API diff.
       - uses: ./.github/actions/setup-rbmt
       - name: "Run API check"
-        run: cargo rbmt api --baseline ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: cargo rbmt api --baseline "$(git merge-base HEAD "origin/${GITHUB_BASE_REF:-$GITHUB_REF_NAME}")"
 
   Prerelease:
     runs-on: ubuntu-24.04
@@ -74,7 +74,7 @@ jobs:
           fetch-depth: 0 # History required for version bump detection.
       - uses: ./.github/actions/setup-rbmt
       - name: "Run pre-release checks"
-        run: cargo rbmt prerelease --baseline ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: cargo rbmt prerelease --baseline "$(git merge-base HEAD "origin/${GITHUB_BASE_REF:-$GITHUB_REF_NAME}")"
 
   # Non cargo-rbmt jobs manage their toolchain version directly.
   Prepare:
