@@ -4,9 +4,10 @@ exclude = ["benches"]
 resolver = "2"
 
 [workspace.metadata]
-rbmt.version = "0.5.3"
-rbmt.toolchains.nightly = "nightly-2026-10-03"
-rbmt.toolchains.stable = "1.99.0"
+rbmt.version = "0.5.4"
+rbmt.lock.lockfiles = ["minimal", "recent"]
+rbmt.toolchains.nightly = "nightly-2026-10-31"
+rbmt.toolchains.stable = "1.99.1"
 
 [workspace.dependencies]
 # Commented out to avoid messing up with MSRV, it gets uncommented in CI or you can uncomment it before running creusot

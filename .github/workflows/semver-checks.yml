@@ -23,21 +23,21 @@ jobs:
           fetch-depth: 0 # we need full history for cargo semver-checks
           persist-credentials: false
       - name: "Install Rustup"
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - name: "Select stable-version"
         run: |
           rustup default $(cargo metadata --format-version 1 | jq -r '.metadata.rbmt.toolchains.stable')
       - name: "Install cargo-binstall"
-        uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
+        uses: cargo-bins/cargo-binstall@75b4bfae1b2c753a6806bbce6e6cb89b602de33c # v1.22.0
       - name: "Binstall pinned cargo-semver-checks"
         run: cargo binstall cargo-semver-checks@$(cat ./.github/workflows/cargo-semver-checks-version) --no-confirm
       - name: "Run semver checks"
         id: semver
         run: |
           set +e
-          ./contrib/check-semver.sh ${{ github.event.pull_request.base.sha || github.event.before }}
+          ./contrib/check-semver.sh "$(git merge-base HEAD "origin/$GITHUB_BASE_REF")"
           echo "exit_code=$?" >> $GITHUB_OUTPUT
       - name: "Save breaking state"
         env:

@@ -671,7 +671,7 @@ impl RelativeDerivationPath {
         new_path
     }
 
-    /// Returns the derivation path as a vector of raw BIP-0032 u32 child numbers.
+    /// Returns the derivation path as a vector of raw BIP-0032 `u32` child numbers.
     /// Unhardened elements are copied as is.
     /// 0x80000000 is added to the hardened elements.
     ///
@@ -831,6 +831,18 @@ impl Xpriv {
     /// * [`XprivDecodeError::InvalidPrivateKeyPrefix`] if the private key bytes don't start with zero.
     /// * [`XprivDecodeError::Secp256k1`] if the private key bytes are not a valid secp secret key.
     pub fn decode(data: &[u8]) -> Result<Self, XprivDecodeError> {
+        let data: &[u8; 78] = data.try_into().map_err(|_| {
+            XprivDecodeError::Xkey(XkeyDecodeError::WrongExtendedKeyLength(data.len()))
+        })?;
+        Self::from_byte_array(data)
+    }
+
+    /// Decodes an extended private key from its 78-byte BIP-0032 encoding.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Xpriv::decode`], except that the length is checked by the type system.
+    pub fn from_byte_array(data: &[u8; 78]) -> Result<Self, XprivDecodeError> {
         let Common { network, depth, parent_fingerprint, child_number, chain_code, key } =
             Common::decode(data).map_err(XprivDecodeError::Xkey)?;
 
@@ -932,7 +944,8 @@ impl Xpub {
             depth: self
                 .depth
                 .checked_add(1)
-                .ok_or(DeriveXpubError::MaximumDepthExceeded(MaximumDepthExceededError {}))?,
+                .ok_or(MaximumDepthExceededError {})
+                .map_err(DeriveXpubError::MaximumDepthExceeded)?,
             parent_fingerprint: self.fingerprint(),
             child_number,
             public_key: tweaked,
@@ -992,6 +1005,18 @@ impl Xpub {
     /// * [`XpubDecodeError::UnknownVersion`] if the decoded network value is not main or testnet.
     /// * [`XpubDecodeError::Secp256k1`] if the public key bytes are not a valid secp public key.
     pub fn decode(data: &[u8]) -> Result<Self, XpubDecodeError> {
+        let data: &[u8; 78] = data.try_into().map_err(|_| {
+            XpubDecodeError::Xkey(XkeyDecodeError::WrongExtendedKeyLength(data.len()))
+        })?;
+        Self::from_byte_array(data)
+    }
+
+    /// Decodes an extended public key from its 78-byte BIP-0032 encoding.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Xpub::decode`], except that the length is checked by the type system.
+    pub fn from_byte_array(data: &[u8; 78]) -> Result<Self, XpubDecodeError> {
         let Common { network, depth, parent_fingerprint, child_number, chain_code, key } =
             Common::decode(data).map_err(XpubDecodeError::Xkey)?;
 
@@ -1050,9 +1075,8 @@ impl FromStr for Xpriv {
         let data = base58::decode_check(inp)?;
 
         if data.len() != 78 {
-            return Err(ParseXprivError::InvalidBase58PayloadLength(
-                InvalidBase58PayloadLengthError { length: data.len() },
-            ));
+            return Err(InvalidBase58PayloadLengthError { length: data.len() })
+                .map_err(ParseXprivError::InvalidBase58PayloadLength);
         }
 
         Self::decode(&data).map_err(ParseXprivError::Decode)
@@ -1072,9 +1096,8 @@ impl FromStr for Xpub {
         let data = base58::decode_check(inp)?;
 
         if data.len() != 78 {
-            return Err(ParseXpubError::InvalidBase58PayloadLength(
-                InvalidBase58PayloadLengthError { length: data.len() },
-            ));
+            return Err(InvalidBase58PayloadLengthError { length: data.len() })
+                .map_err(ParseXpubError::InvalidBase58PayloadLength);
         }
 
         Self::decode(&data).map_err(ParseXpubError::Decode)
@@ -1105,15 +1128,11 @@ impl Common {
     ///
     /// # Errors
     ///
-    /// * [`XkeyDecodeError::WrongExtendedKeyLength`] if the data is not the correct length.
     /// * [`XkeyDecodeError::NonZeroParentFingerprintForMasterKey`] if the depth is 0 and the master key
     ///   fingerprint is non-zero.
     /// * [`XkeyDecodeError::NonZeroChildNumberForMasterKey`] if the depth is 0 and the child number is
     ///   non-zero.
-    fn decode(data: &[u8]) -> Result<Self, XkeyDecodeError> {
-        let data: &[u8; 78] =
-            data.try_into().map_err(|_| XkeyDecodeError::WrongExtendedKeyLength(data.len()))?;
-
+    fn decode(data: &[u8; 78]) -> Result<Self, XkeyDecodeError> {
         let (&network, data) = data.split_array::<4, 74>();
         let (&depth, data) = data.split_first::<73>();
         let (&parent_fingerprint, data) = data.split_array::<4, 69>();
@@ -1371,7 +1390,12 @@ pub mod error {
     }
 
     #[cfg(feature = "std")]
-    impl std::error::Error for MaximumDepthExceededError {}
+    impl std::error::Error for MaximumDepthExceededError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            let Self {} = self;
+            None
+        }
+    }
 
     impl fmt::Display for MaximumDepthExceededError {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1391,7 +1415,12 @@ pub mod error {
     }
 
     #[cfg(feature = "std")]
-    impl std::error::Error for CannotDeriveHardenedChildError {}
+    impl std::error::Error for CannotDeriveHardenedChildError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            let Self {} = self;
+            None
+        }
+    }
 
     impl fmt::Display for CannotDeriveHardenedChildError {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -2153,6 +2182,27 @@ mod tests {
     }
 
     #[test]
+    fn vector_4() {
+        // Tests the retention of leading zeros, see btcsuite/btcutil#172.
+        let seed = hex!("3ddd5602285899a946114506157c7997e5444528f3003f6134712147db19b678");
+
+        // m
+        test_path(NetworkKind::Main, &seed, &"m".parse().unwrap(),
+                  "xprv9s21ZrQH143K48vGoLGRPxgo2JNkJ3J3fqkirQC2zVdk5Dgd5w14S7fRDyHH4dWNHUgkvsvNDCkvAwcSHNAQwhwgNMgZhLtQC63zxwhQmRv",
+                  "xpub661MyMwAqRbcGczjuMoRm6dXaLDEhW1u34gKenbeYqAix21mdUKJyuyu5F1rzYGVxyL6tmgBUAEPrEz92mBXjByMRiJdba9wpnN37RLLAXa");
+
+        // m/0h
+        test_path(NetworkKind::Main, &seed, &"m/0h".parse().unwrap(),
+                  "xprv9vB7xEWwNp9kh1wQRfCCQMnZUEG21LpbR9NPCNN1dwhiZkjjeGRnaALmPXCX7SgjFTiCTT6bXes17boXtjq3xLpcDjzEuGLQBM5ohqkao9G",
+                  "xpub69AUMk3qDBi3uW1sXgjCmVjJ2G6WQoYSnNHyzkmdCHEhSZ4tBok37xfFEqHd2AddP56Tqp4o56AePAgCjYdvpW2PU2jbUPFKsav5ut6Ch1m");
+
+        // m/0h/1h
+        test_path(NetworkKind::Main, &seed, &"m/0h/1h".parse().unwrap(),
+                  "xprv9xJocDuwtYCMNAo3Zw76WENQeAS6WGXQ55RCy7tDJ8oALr4FWkuVoHJeHVAcAqiZLE7Je3vZJHxspZdFHfnBEjHqU5hG1Jaj32dVoS6XLT1",
+                  "xpub6BJA1jSqiukeaesWfxe6sNK9CCGaujFFSJLomWHprUL9DePQ4JDkM5d88n49sMGJxrhpjazuXYWdMf17C9T5XnxkopaeS7jGk1GyyVziaMt");
+    }
+
+    #[test]
     fn reject_xpriv_with_non_zero_byte_at_index_45() {
         let mut xpriv = base58::decode_check("xprv9wSp6B7kry3Vj9m1zSnLvN3xH8RdsPP1Mh7fAaR7aRLcQMKTR2vidYEeEg2mUCTAwCd6vnxVrcjfy2kRgVsFawNzmjuHc2YmYRmagcEPdU9").unwrap();
 
@@ -2165,6 +2215,52 @@ mod tests {
         match result {
             Err(XprivDecodeError::InvalidPrivateKeyPrefix) => {}
             _ => panic!("Expected InvalidPrivateKeyPrefix error, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn decode_matches_from_byte_array() {
+        let xpriv = "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi".parse::<Xpriv>().unwrap();
+        let xpub = Xpub::from_xpriv(&xpriv);
+
+        assert_eq!(Xpriv::decode(&xpriv.encode()), Ok(xpriv));
+        assert_eq!(Xpriv::from_byte_array(&xpriv.encode()), Ok(xpriv));
+        assert_eq!(Xpub::decode(&xpub.encode()), Ok(xpub));
+        assert_eq!(Xpub::from_byte_array(&xpub.encode()), Ok(xpub));
+    }
+
+    #[test]
+    fn reject_decode_with_wrong_length() {
+        for len in [0usize, 77, 79] {
+            let data = vec![0u8; len];
+
+            assert_eq!(
+                Xpriv::decode(&data),
+                Err(XprivDecodeError::Xkey(XkeyDecodeError::WrongExtendedKeyLength(len)))
+            );
+            assert_eq!(
+                Xpub::decode(&data),
+                Err(XpubDecodeError::Xkey(XkeyDecodeError::WrongExtendedKeyLength(len)))
+            );
+        }
+    }
+
+    #[test]
+    fn reject_base58_payload_with_wrong_length() {
+        for len in [0usize, 77, 79] {
+            let encoded = base58::Base58CkString::encode(&vec![0u8; len]).unwrap();
+
+            match encoded.as_str().parse::<Xpriv>() {
+                Err(ParseXprivError::InvalidBase58PayloadLength(e)) =>
+                    assert_eq!(e.invalid_base58_payload_length(), len),
+                result => panic!("Expected InvalidBase58PayloadLength error, got {:?}", result),
+            }
+
+            match encoded.as_str().parse::<Xpub>() {
+                Err(ParseXpubError::InvalidBase58PayloadLength(e)) =>
+                    assert_eq!(e.invalid_base58_payload_length(), len),
+                result => panic!("Expected InvalidBase58PayloadLength error, got {:?}", result),
+            }
         }
     }
 

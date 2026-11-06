@@ -103,7 +103,7 @@ impl Sequence {
     #[inline]
     pub fn is_final(self) -> bool { !self.enables_absolute_lock_time() }
 
-    /// Returns true if the transaction opted-in to BIP-0125 replace-by-fee.
+    /// Returns `true` if the transaction opted-in to BIP-0125 replace-by-fee.
     ///
     /// Replace by fee is signaled by the sequence being less than 0xfffffffe which is checked by
     /// this method. Note, this is the highest "non-final" value (see [`Sequence::is_final`]).
@@ -116,7 +116,7 @@ impl Sequence {
 
     /// Returns `true` if the sequence number encodes a block based relative lock-time.
     #[inline]
-    pub fn is_height_locked(self) -> bool {
+    pub fn is_block_count_locked(self) -> bool {
         self.is_relative_lock_time() && (self.0 & Self::LOCK_TYPE_MASK == 0)
     }
 
@@ -152,7 +152,7 @@ impl Sequence {
 
     /// Constructs a new relative lock-time using a count of blocks.
     #[inline]
-    pub fn from_height(height: u16) -> Self { Self(u32::from(height)) }
+    pub fn from_block_count(count: u16) -> Self { Self(u32::from(count)) }
 
     /// Constructs a new relative lock-time using time intervals where each interval is equivalent
     /// to 512 seconds.
@@ -166,11 +166,10 @@ impl Sequence {
     /// Constructs a new relative lock-time from seconds, converting the seconds into 512 second
     /// interval with floor division.
     ///
-    /// Will return an error if the input cannot be encoded in 16 bits.
-    ///
     /// # Errors
     ///
-    /// Will return an error if `seconds` cannot be encoded in 16 bits. See
+    /// Will return an error if the number of 512-second intervals after rounding down exceeds
+    /// `u16::MAX`, i.e., if `seconds` is greater than 33,554,431. See
     /// [`NumberOf512Seconds::from_seconds_floor`].
     #[inline]
     pub fn from_seconds_floor(seconds: u32) -> Result<Self, TimeOverflowError> {
@@ -181,11 +180,10 @@ impl Sequence {
     /// Constructs a new relative lock-time from seconds, converting the seconds into 512 second
     /// interval with ceiling division.
     ///
-    /// Will return an error if the input cannot be encoded in 16 bits.
-    ///
     /// # Errors
     ///
-    /// Will return an error if `seconds` cannot be encoded in 16 bits. See
+    /// Will return an error if the number of 512-second intervals after rounding up exceeds
+    /// `u16::MAX`, i.e., if `seconds` is greater than 33,553,920. See
     /// [`NumberOf512Seconds::from_seconds_ceil`].
     #[inline]
     pub fn from_seconds_ceil(seconds: u32) -> Result<Self, TimeOverflowError> {
@@ -427,7 +425,7 @@ mod tests {
         assert!(!seq_final.is_relative_lock_time());
         assert!(!seq_non_rbf.is_rbf());
         assert!(block_time_lock.is_relative_lock_time());
-        assert!(block_time_lock.is_height_locked());
+        assert!(block_time_lock.is_block_count_locked());
         assert!(block_time_lock.is_rbf());
         assert!(unit_time_lock.is_relative_lock_time());
         assert!(unit_time_lock.is_time_locked());
@@ -487,9 +485,9 @@ mod tests {
 
         let seq_height_locked = Sequence(0x0039_9999);
         let seq_time_locked = Sequence(0x0040_0000);
-        assert!(seq_height_locked.is_height_locked());
+        assert!(seq_height_locked.is_block_count_locked());
         assert!(seq_time_locked.is_time_locked());
-        assert!(!seq_time_locked.is_height_locked());
+        assert!(!seq_time_locked.is_block_count_locked());
         assert!(!seq_height_locked.is_time_locked());
     }
 
@@ -530,15 +528,15 @@ mod tests {
     #[test]
     fn sequence_from_height() {
         // Check near the boundaries
-        assert_eq!(Sequence::from_height(0), Sequence(0));
-        assert_eq!(Sequence::from_height(1), Sequence(1));
-        assert_eq!(Sequence::from_height(0x7FFF), Sequence(0x7FFF));
-        assert_eq!(Sequence::from_height(0xFFFF), Sequence(0xFFFF));
+        assert_eq!(Sequence::from_block_count(0), Sequence(0));
+        assert_eq!(Sequence::from_block_count(1), Sequence(1));
+        assert_eq!(Sequence::from_block_count(0x7FFF), Sequence(0x7FFF));
+        assert_eq!(Sequence::from_block_count(0xFFFF), Sequence(0xFFFF));
 
         // Check steps throughout the whole range
         let step = 512;
         for v in (0..=u16::MAX).step_by(step) {
-            assert_eq!(Sequence::from_height(v), Sequence(v.into()));
+            assert_eq!(Sequence::from_block_count(v), Sequence(v.into()));
         }
     }
 

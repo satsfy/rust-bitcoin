@@ -23,7 +23,7 @@ use bincode::serialize;
 use bitcoin::bip32::{ChildNumber, Xpriv, Xpub};
 use bitcoin::locktime::{absolute, relative};
 use bitcoin::sighash::{EcdsaSighashType, TapSighashType};
-use bitcoin::taproot::{self, ControlBlock, LeafVersion, TapTree, TaprootBuilder};
+use bitcoin::taproot::{self, LeafVersion, TapTree, TaprootBuilder};
 use bitcoin::witness::Witness;
 use bitcoin::{
     ecdsa, hex, Address, AddressParams, LegacyPublicKey, OutPoint, ScriptSigBuf, TapScriptBuf,
@@ -151,16 +151,6 @@ fn serde_regression_ecdsa_sig() {
 }
 
 #[test]
-fn serde_regression_control_block() {
-    let s = include_str!("data/serde/control_block_hex");
-    let block = ControlBlock::decode(&hex::decode_to_vec(s.trim()).unwrap()).unwrap();
-
-    let got = serialize(&block).unwrap();
-    let want = include_bytes!("data/serde/control_block_bincode") as &[_];
-    assert_eq!(got, want)
-}
-
-#[test]
 fn serde_regression_child_number() {
     let num = ChildNumber::from_raw(0xDEADBEEF);
 
@@ -205,7 +195,7 @@ fn serde_regression_taproot_sig() {
 fn serde_regression_taptree() {
     let ver = LeafVersion::from_consensus(0).unwrap();
     let script = TapScriptBuf::from(vec![0u8, 1u8, 2u8]);
-    let mut builder = TaprootBuilder::new().add_leaf_with_ver(1, script.clone(), ver).unwrap();
+    let mut builder = TaprootBuilder::new().add_leaf_with_ver(1, script.clone().into(), ver).unwrap();
     builder = builder.add_leaf(1, script).unwrap();
     let tree = TapTree::try_from(builder).unwrap();
 

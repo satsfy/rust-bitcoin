@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-internals"
-version = "0.8.0"
+version = "0.8.2"
 
 [[package]]
 name = "bitcoin-io"
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-primitives"
-version = "0.103.1"
+version = "0.104.0"
 dependencies = [
  "bitcoin-consensus-encoding",
  "bitcoin-internals",
@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-units"
-version = "0.5.0"
+version = "0.7.0"
 dependencies = [
  "bitcoin-consensus-encoding",
  "bitcoin-internals",

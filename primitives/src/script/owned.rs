@@ -112,7 +112,7 @@ impl<T> ScriptBuf<T> {
     /// avoided.
     ///
     /// [`reserve_exact`]: Self::reserve_exact
-    #[must_use]
+    #[must_use = "converting the value without using the result is useless; the only side effect is reallocation"]
     #[inline]
     pub fn into_boxed_script(self) -> Box<Script<T>> {
         Script::from_boxed_bytes(self.into_bytes().into_boxed_slice())
@@ -145,7 +145,7 @@ impl<T> ScriptBuf<T> {
     ///
     /// Unlike `reserve`, this will not deliberately over-allocate to speculatively avoid frequent
     /// allocations. After calling `reserve_exact`, capacity will be greater than or equal to
-    /// `self.len() + additional`. Does nothing if the capacity is already sufficient.
+    /// `self.len() + additional_len`. Does nothing if the capacity is already sufficient.
     ///
     /// Note that the allocator may give the collection more space than it requests. Therefore,
     /// capacity cannot be relied upon to be precisely minimal. Prefer [`reserve`]
@@ -177,11 +177,11 @@ impl<T> ScriptBuf<T> {
     #[deprecated(since = "1.0.0-rc.0", note = "use `format!(\"{var:x}\")` instead")]
     pub fn to_hex(&self) -> alloc::string::String { alloc::format!("{:x}", self) }
 
-    /// Constructs a new script builder
+    /// Constructs a new script builder.
     pub fn builder() -> Builder<T> { Builder::new() }
 
     /// Adds a single opcode to the script.
-    pub fn push_opcode(&mut self, data: Opcode) { self.as_byte_vec().push(data.to_u8()); }
+    pub fn push_opcode(&mut self, opcode: Opcode) { self.as_byte_vec().push(opcode.to_u8()); }
 
     /// Adds instructions to push some arbitrary data onto the stack.
     ///
@@ -272,7 +272,7 @@ impl<T> ScriptBuf<T> {
         ScriptBufAsVec(self, vec)
     }
 
-    /// Pushes the slice without reserving
+    /// Pushes the slice without reserving.
     fn push_slice_no_opt(&mut self, data: &PushBytes) {
         let mut this = self.as_byte_vec();
         // Start with a PUSH opcode

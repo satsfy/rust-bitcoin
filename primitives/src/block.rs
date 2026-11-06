@@ -2,9 +2,8 @@
 
 //! Bitcoin blocks.
 //!
-//! A block is a bundle of transactions with a proof-of-work attached,
-//! which commits to an earlier block to form the blockchain. This
-//! module describes structures and functions needed to describe
+//! A block is a bundle of transactions with a proof-of-work attached, which commits to an earlier
+//! block to form the blockchain. This module describes structures and functions needed to describe
 //! these blocks and the blockchain.
 //!
 //! # Examples
@@ -35,8 +34,7 @@
 //! assert!(coinbase.is_coinbase());
 //!
 //! let transactions = vec![coinbase];
-//! let merkle_root =
-//!     block::compute_merkle_root(&transactions).ok_or(InvalidBlockError::NoTransactions)?;
+//! let merkle_root = block::compute_merkle_root(&transactions).expect("tx list is valid");
 //!
 //! let header = Header {
 //!     version: Version::TWO,
@@ -114,14 +112,11 @@ pub use crate::hash_types::{BlockHash, BlockHashDecoder, BlockHashEncoder, Witne
 #[cfg(feature = "alloc")]
 const WITNESS_COMMITMENT_MAGIC: [u8; 6] = [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
-/// Marker for whether or not a block has been validated.
+/// Marker for whether or not a block has passed the checks in [`validate`].
 ///
-/// We define valid as:
+/// See [`validate`] for what is checked.
 ///
-/// * The Merkle root of the header matches Merkle root of the transaction list.
-/// * The witness commitment in coinbase matches the transaction list.
-///
-/// See `bitcoin::block::BlockUncheckedExt::validate()`.
+/// [`validate`]: Block<Unchecked>::validate
 #[cfg(feature = "alloc")]
 pub trait Validation: sealed::Validation + Sync + Send + Sized + Unpin {
     /// Indicates whether this [`Validation`] is [`Checked`] or not.
@@ -145,9 +140,9 @@ pub struct Block<V = Unchecked>
 where
     V: Validation,
 {
-    /// The block header
+    /// The block header.
     header: Header,
-    /// List of transactions contained in the block
+    /// List of transactions contained in the block.
     transactions: Vec<Transaction>,
     /// Cached witness root if it's been computed.
     witness_root: Option<WitnessMerkleNode>,
@@ -163,9 +158,13 @@ impl Block<Unchecked> {
         Self { header, transactions, witness_root: None, _marker: PhantomData::<Unchecked> }
     }
 
-    /// Ignores block validation logic and just assumes you know what you are doing.
+    /// Skips the block checks performed by [`validate`].
     ///
     /// You should only use this function if you trust the block i.e., it comes from a trusted node.
+    /// Otherwise use [`validate`].
+    ///
+    /// `witness_root` is returned by [`cached_witness_root`], pass `None` if it has not been
+    /// computed.
     ///
     /// # Examples
     ///
@@ -224,20 +223,29 @@ impl Block<Unchecked> {
     #[inline]
     pub fn as_parts(&self) -> (&Header, &[Transaction]) { (&self.header, &self.transactions) }
 
-    /// Validates (or checks) a block.
+    /// Checks a block's coinbase, Merkle root, and witness commitment.
     ///
-    /// We define valid as:
+    /// This checks that:
     ///
-    /// * The Merkle root of the header matches Merkle root of the transaction list.
-    /// * The witness commitment in coinbase matches the transaction list.
+    /// * The first transaction is a coinbase transaction.
+    /// * The Merkle root of the header matches the Merkle root of the transaction list.
+    /// * If the coinbase has a witness commitment, it matches the transaction list and its
+    ///   witness has exactly one 32-byte reserved value. A commitment is required if any
+    ///   transaction has witness data.
+    ///
+    /// This does not check proof of work or fully validate the transactions. The witness root
+    /// computed when a commitment is present is cached and can be retrieved with
+    /// [`cached_witness_root`]. If you trust the block you can skip these checks with
+    /// [`assume_checked`].
     ///
     /// # Errors
     ///
     /// Returns an error if:
+    ///
     /// * The block has no transactions.
     /// * The first transaction is not a coinbase transaction.
     /// * The Merkle root of the header does not match the Merkle root of the transaction list.
-    /// * The witness commitment in the coinbase does not match the transaction list.
+    /// * A witness commitment is invalid or missing when witness data is present.
     ///
     /// # Examples
     ///
@@ -270,7 +278,7 @@ impl Block<Unchecked> {
     /// #     }
     /// # }
     /// let transactions = vec![coinbase];
-    /// let root = block::compute_merkle_root(&transactions).unwrap();
+    /// let root = block::compute_merkle_root(&transactions).expect("tx list is valid");
     ///
     /// let block = Block::new_unchecked(header_with(root), transactions.clone());
     /// assert_eq!(block.validate()?.transactions().len(), 1);
@@ -312,7 +320,11 @@ impl Block<Unchecked> {
         compute_merkle_root(&self.transactions) == Some(self.header.merkle_root)
     }
 
-    /// Computes the witness commitment for a list of transactions.
+    /// Computes the witness root and witness commitment for the block's transactions.
+    ///
+    /// The `witness_reserved_value` is the single item in the coinbase input witness.
+    ///
+    /// Returns [`None`] if the witness root cannot be computed, see [`compute_witness_root`].
     pub fn compute_witness_commitment(
         &self,
         witness_reserved_value: &[u8],
@@ -332,8 +344,10 @@ impl Block<Unchecked> {
     ///
     /// # Returns
     ///
-    /// Returns the witness Merkle root if it was computed. This can then be passed into
-    /// [`assume_checked`] to save re-calculating it.
+    /// Whether the witness commitment is valid, and the witness Merkle root if it was computed.
+    /// The commitment is valid if it matches the transaction list, or if it is absent and no
+    /// transaction has witness data. The root can then be passed into [`assume_checked`] to save
+    /// re-calculating it.
     ///
     /// [`assume_checked`]: Block<Unchecked>::assume_checked
     ///
@@ -356,7 +370,7 @@ impl Block<Unchecked> {
     /// #     }],
     /// #     outputs: vec![TxOut { amount: Amount::ZERO, script_pubkey: ScriptPubKeyBuf::new() }],
     /// # };
-    /// # let merkle_root = block::compute_merkle_root(&[coinbase.clone()]).expect("one transaction");
+    /// # let merkle_root = block::compute_merkle_root(&[coinbase.clone()]).expect("tx list is valid");
     /// # let header = Header {
     /// #     version: Version::TWO,
     /// #     prev_blockhash: BlockHash::GENESIS_PREVIOUS_BLOCK_HASH,
@@ -460,7 +474,8 @@ impl From<&Block> for BlockHash {
     fn from(block: &Block) -> Self { block.block_hash() }
 }
 
-/// Marker that the block's merkle root has been successfully validated.
+/// Marker that the block passed the checks in [`validate`] or was marked checked with
+/// [`assume_checked`]. This does not imply full consensus validation.
 ///
 /// # Examples
 ///
@@ -489,7 +504,9 @@ impl Validation for Checked {
     const IS_CHECKED: bool = true;
 }
 
-/// Marker that the block's merkle root has not been validated.
+/// Marker that the block has not passed the checks in [`validate`].
+///
+/// [`validate`]: Block<Unchecked>::validate
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg(feature = "alloc")]
 pub enum Unchecked {}
@@ -587,6 +604,11 @@ crate::decoder_newtype! {
     /// The decoder for the [`Block`] type.
     ///
     /// This decoder can only produce a [`Block<Unchecked>`].
+    ///
+    /// Decoding fails if the block weight exceeds the maximum block weight of 4,000,000 weight
+    /// units, or if any of its transactions fail to decode (see [`TransactionDecoder`]).
+    ///
+    /// [`TransactionDecoder`]: crate::transaction::TransactionDecoder
     #[derive(Debug, Clone)]
     pub struct BlockDecoder(BlockInnerDecoder);
 
@@ -599,7 +621,7 @@ crate::decoder_newtype! {
 
     fn end(result: Result<(Header, Vec<Transaction>), <BlockInnerDecoder as encoding::Decoder>::Error>) -> Result<Block, BlockDecoderError> {
         let (header, transactions) =
-            result.map_err(|e| BlockDecoderError(error::BlockDecoderErrorInner::Decode(e)))?;
+            result.map_err(error::BlockDecoderErrorInner::Decode).map_err(BlockDecoderError)?;
         let weight = block_weight_wu(&transactions);
         if weight > crate::transaction::MAX_BLOCK_WEIGHT.to_wu() {
             return Err(BlockDecoderError(error::BlockDecoderErrorInner::BlockTooHeavy(weight)));
@@ -622,13 +644,14 @@ fn block_weight_wu(transactions: &[Transaction]) -> u64 {
 
 /// Computes the Merkle root for a list of transactions.
 ///
-/// Returns [`None`] if the iterator was empty, or if the transaction list contains
-/// consecutive duplicates which would trigger CVE 2012-2459. Blocks with duplicate
-/// transactions will always be invalid, so there is no harm in us refusing to
-/// compute their merkle roots.
+/// # Returns
 ///
-/// Unless you are certain your transaction list is nonempty and has no duplicates,
-/// you should not unwrap the [`Option`] returned by this method!
+/// [`None`] if the iterator was empty, or if the transaction list contains consecutive duplicates
+/// which would trigger CVE-2012-2459. Blocks with duplicate transactions will always be invalid, so
+/// there is no harm in us refusing to compute their Merkle roots.
+///
+/// Unless you are certain your transaction list is nonempty and has no duplicates, you should not
+/// unwrap the [`Option`] returned by this method!
 #[cfg(feature = "alloc")]
 pub fn compute_merkle_root<T>(transactions: T) -> Option<TxMerkleNode>
 where
@@ -641,13 +664,14 @@ where
 
 /// Computes the Merkle root of transactions hashed for witness.
 ///
-/// Returns [`None`] if the iterator was empty, or if the transaction list contains
-/// consecutive duplicates which would trigger CVE 2012-2459. Blocks with duplicate
-/// transactions will always be invalid, so there is no harm in us refusing to
-/// compute their merkle roots.
+/// # Returns
 ///
-/// Unless you are certain your transaction list is nonempty and has no duplicates,
-/// you should not unwrap the [`Option`] returned by this method!
+/// [`None`] if the iterator was empty, or if the transaction list contains consecutive duplicates
+/// which would trigger CVE-2012-2459. Blocks with duplicate transactions will always be invalid, so
+/// there is no harm in us refusing to compute their Merkle roots.
+///
+/// Unless you are certain your transaction list is nonempty and has no duplicates, you should not
+/// unwrap the [`Option`] returned by this method!
 #[cfg(feature = "alloc")]
 pub fn compute_witness_root<T>(transactions: T) -> Option<WitnessMerkleNode>
 where
@@ -681,8 +705,8 @@ fn witness_commitment_from_coinbase(coinbase: &Transaction) -> Option<WitnessCom
 
 /// Bitcoin block header.
 ///
-/// Contains all the block's information except the actual transactions, but
-/// including a root of a [Merkle tree] committing to all transactions in the block.
+/// Contains all the block's information except the actual transactions, but including a root of a
+/// [Merkle tree] committing to all transactions in the block.
 ///
 /// [Merkle tree]: https://en.wikipedia.org/wiki/Merkle_tree
 ///
@@ -925,10 +949,10 @@ impl From<&Header> for BlockHash {
 pub struct Version(i32);
 
 impl Version {
-    /// The original Bitcoin Block v1.
+    /// The original Bitcoin block v1.
     pub const ONE: Self = Self(1);
 
-    /// BIP-0034 Block v2.
+    /// BIP-0034 block v2.
     pub const TWO: Self = Self(2);
 
     /// BIP-0009 compatible version number that does not signal for any softforks.
@@ -1113,7 +1137,8 @@ pub mod error {
     pub enum InvalidBlockError {
         /// Header Merkle root does not match the calculated Merkle root.
         InvalidMerkleRoot,
-        /// The witness commitment in coinbase transaction does not match the calculated `witness_root`.
+        /// The witness commitment in the coinbase transaction does not match the calculated
+        /// witness root.
         InvalidWitnessCommitment,
         /// Block has no transactions (missing coinbase).
         NoTransactions,
@@ -1134,7 +1159,10 @@ pub mod error {
             match self {
                 Self::InvalidMerkleRoot =>
                     write!(f, "header Merkle root does not match the calculated Merkle root"),
-                Self::InvalidWitnessCommitment => write!(f, "the witness commitment in coinbase transaction does not match the calculated witness_root"),
+                Self::InvalidWitnessCommitment => write!(
+                    f,
+                    "the witness commitment in the coinbase transaction does not match the calculated witness root"
+                ),
                 Self::NoTransactions => write!(f, "block has no transactions (missing coinbase)"),
                 Self::InvalidCoinbase =>
                     write!(f, "the first transaction is not a valid coinbase transaction"),
@@ -1848,7 +1876,7 @@ mod tests {
         }];
         let block = Block::new_unchecked(header, transactions);
 
-        // Transaction with no inputs uses segwit serialization:
+        // Transaction with no inputs uses SegWit serialization:
         // version (4) + marker (1) + flag (1) + input_count (1) + output_count (1) + lock_time (4)
         let want = "010000009999999999999999999999999999999999999999999999999999999999999999777777777777777777777777777777777777777777777777777777777777777702000000030000000400000001010000000001000000000000";
 

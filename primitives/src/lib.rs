@@ -10,6 +10,17 @@
 //! This crate can be used in a no-std environment but a lot of the functionality requires an
 //! allocator i.e., requires the `alloc` feature to be enabled.
 //!
+//! ## Features
+//!
+//! * `std` (default) - turns on `std` integration, mainly the `std::error::Error` trait. Implies
+//!   `alloc`.
+//! * `alloc` - turns on the types that require an allocator, such as `Transaction`, `Block`,
+//!   `Witness` and the script types.
+//! * `hex` (default) - turns on parsing and formatting types as hex strings.
+//! * `serde` - causes the crate to depend on `serde` and provide support for serializing and
+//!   deserializing its types. Implies `alloc` and `hex`.
+//! * `arbitrary` - causes the crate to depend on `arbitrary` and implement the `Arbitrary` trait.
+//!
 //! ### serde
 //!
 //! The consensus encodable types ([`Block`], [`block::Header`], [`Transaction`], [`TxIn`], and
@@ -29,6 +40,17 @@
 //! # }
 //! ```
 //!
+//! ## MSRV
+//!
+//! This crate supports Rust 1.74, however some of its dependencies may not do so or may require
+//! pinning. Similarly, some features may require newer Rust version (implicitly or explicitly).
+//!
+//! ## Policy
+//!
+//! Our MSRV policy is to only bump MSRV to the one that is available on the latest Debian stable
+//! and is at least two years old. However, we will try to be even more conservative when practical
+//! given this crate is very widely used.
+//!
 //! [`rust-bitcoin`]: <https://github.com/rust-bitcoin/rust-bitcoin>
 
 #![no_std]
@@ -44,17 +66,14 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "arbitrary")]
+pub extern crate arbitrary;
+pub extern crate encoding;
+#[cfg(feature = "hex")]
+pub extern crate hex;
 #[cfg(feature = "serde")]
 #[macro_use]
 pub extern crate serde;
-
-#[cfg(feature = "arbitrary")]
-pub extern crate arbitrary;
-
-pub extern crate encoding;
-
-#[cfg(feature = "hex")]
-pub extern crate hex;
 
 #[doc(hidden)]
 pub mod _export {
@@ -104,9 +123,9 @@ pub use self::{
         Block, Checked as BlockChecked, Unchecked as BlockUnchecked, Validation as BlockValidation,
     },
     script::{
-        RedeemScript, RedeemScriptBuf, ScriptPubKey, ScriptPubKeyBuf, ScriptSig, ScriptSigBuf,
-        SignetBlockScript, SignetBlockScriptBuf, TapScript, TapScriptBuf, WitnessScript,
-        WitnessScriptBuf,
+        RedeemScript, RedeemScriptBuf, ScriptCode, ScriptPubKey, ScriptPubKeyBuf, ScriptSig,
+        ScriptSigBuf, SignetBlockScript, SignetBlockScriptBuf, TapScript, TapScriptBuf,
+        WitnessScript, WitnessScriptBuf,
     },
     transaction::{Transaction, TxIn, TxOut},
     witness::Witness,

@@ -63,7 +63,7 @@ impl U256 {
 
     fn is_zero(&self) -> bool { self.0 == 0 && self.1 == 0 }
 
-    /// Returns true if `self` is equal to [`U256::MAX`].
+    /// Returns `true` if `self` is equal to [`U256::MAX`].
     pub fn is_max(&self) -> bool { self.0 == u128::MAX && self.1 == u128::MAX }
 
     /// Returns the low 32 bits.
@@ -120,9 +120,7 @@ impl U256 {
 
     /// Calculates quotient and remainder.
     ///
-    /// # Returns
-    ///
-    /// (quotient, remainder)
+    /// Returns (quotient, remainder).
     ///
     /// # Panics
     ///
@@ -165,8 +163,10 @@ impl U256 {
 
     /// Calculates `self` + `rhs`
     ///
-    /// Returns a tuple of the addition along with a boolean indicating whether an arithmetic
-    /// overflow would occur. If an overflow would have occurred then the wrapped value is returned.
+    /// # Returns
+    ///
+    /// The sum of `self` and `rhs`, along with a boolean indicating whether an arithmetic
+    /// overflow occurred. If an overflow occurred, the wrapped sum is returned.
     #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn overflowing_add(self, rhs: Self) -> (Self, bool) {
         let mut ret = Self::ZERO;
@@ -189,8 +189,10 @@ impl U256 {
 
     /// Calculates `self` - `rhs`
     ///
-    /// Returns a tuple of the subtraction along with a boolean indicating whether an arithmetic
-    /// overflow would occur. If an overflow would have occurred then the wrapped value is returned.
+    /// # Returns
+    ///
+    /// The difference of `self` and `rhs`, along with a boolean indicating whether an arithmetic
+    /// overflow occurred. If an overflow occurred, the wrapped difference is returned.
     #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
         let ret = self.wrapping_add(!rhs).wrapping_add(Self::ONE);
@@ -200,9 +202,10 @@ impl U256 {
 
     /// Calculates the multiplication of `self` and `rhs`.
     ///
-    /// Returns a tuple of the multiplication along with a boolean
-    /// indicating whether an arithmetic overflow would occur. If an
-    /// overflow would have occurred then the wrapped value is returned.
+    /// # Returns
+    ///
+    /// The product of `self` and `rhs`, along with a boolean indicating whether an arithmetic
+    /// overflow occurred. If an overflow occurred, the wrapped product is returned.
     #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         let mut ret = Self::ZERO;
@@ -528,11 +531,14 @@ macro_rules! impl_hex {
                 }
 
                 #[allow(clippy::indexing_slicing)]
-                for byte in self.to_be_bytes() {
-                    let upper_idx = ((byte & 0xf0) >> 4) as usize;
-                    let lower_idx = (byte & 0xf) as usize;
-                    f.write_char($lookup[upper_idx])?;
-                    f.write_char($lookup[lower_idx])?;
+                match $lookup {
+                    lookup =>
+                        for byte in self.to_be_bytes() {
+                            let upper_idx = ((byte & 0xf0) >> 4) as usize;
+                            let lower_idx = (byte & 0xf) as usize;
+                            f.write_char(lookup[upper_idx])?;
+                            f.write_char(lookup[lower_idx])?;
+                        },
                 }
                 Ok(())
             }
@@ -642,6 +648,8 @@ impl core::str::FromStr for U256 {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = Self::ZERO;
 
+        let s = s.strip_prefix('+').unwrap_or(s);
+
         if s.is_empty() {
             return Err(ParseU256Error::Empty);
         }
@@ -649,7 +657,10 @@ impl core::str::FromStr for U256 {
         for chunk in s.as_bytes().rchunks(38).rev() {
             let chunk_str = core::str::from_utf8(chunk).map_err(ParseU256Error::InvalidEncoding)?;
 
-            let val: u128 = chunk_str.parse().map_err(ParseU256Error::InvalidDigit)?;
+            // Per std, u128::from_str can accept a leading + sign,
+            // but that is not valid u256 syntax.
+            let digits = if chunk_str.starts_with('+') { "+" } else { chunk_str };
+            let val: u128 = digits.parse().map_err(ParseU256Error::InvalidDigit)?;
 
             // Shift decimals and add chunk
             let (res, carry1) = result.overflowing_mul(POW10_38.into());
@@ -877,6 +888,38 @@ mod tests {
             format!("{:#X}", U256::MAX),
             "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
         );
+    }
+
+    #[test]
+    fn impl_hex_evaluates_lookup_once_per_format() {
+        use core::fmt::Write as _;
+        use core::sync::atomic::{AtomicUsize, Ordering};
+
+        static LOOKUP_HITS: AtomicUsize = AtomicUsize::new(0);
+
+        trait CountingHex {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;
+        }
+
+        impl_hex!(CountingHex, {
+            LOOKUP_HITS.fetch_add(1, Ordering::Relaxed);
+            ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
+        });
+
+        struct Hex(U256);
+
+        impl fmt::Display for Hex {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { CountingHex::fmt(&self.0, f) }
+        }
+
+        struct Sink;
+
+        impl fmt::Write for Sink {
+            fn write_str(&mut self, _: &str) -> fmt::Result { Ok(()) }
+        }
+
+        write!(Sink, "{}", Hex(U256::MAX)).unwrap();
+        assert_eq!(LOOKUP_HITS.load(Ordering::Relaxed), 1);
     }
 
     #[test]
@@ -1441,5 +1484,13 @@ mod tests {
         assert_eq!((U256::MAX >> (256 - 32)).to_f64(), 4_294_967_295.0_f64);
         assert_eq!((U256::MAX >> (256 - 16)).to_f64(), 65535.0_f64);
         assert_eq!((U256::MAX >> (256 - 8)).to_f64(), 255.0_f64);
+    }
+
+    #[test]
+    fn u256_from_str_rejects_sign_at_chunk_boundary() {
+        assert_eq!("+7".parse::<U256>(), Ok(U256::from(7_u32)));
+        assert!("++7".parse::<U256>().is_err());
+        // With 39 digits, the second 38 digit chunk starts with the sign.
+        assert!("1+0000000000000000000000000000000000000".parse::<U256>().is_err());
     }
 }

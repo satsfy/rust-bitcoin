@@ -6,10 +6,12 @@
 //! (de)serialized.
 
 use crate::internal_macros::define_extension_trait;
-use crate::script::{self, WitnessScriptBuf};
+use crate::{script, P2wpkhScriptCode};
 
 #[rustfmt::skip]                // Keep public re-exports separate.
 pub use secp256k1::{constants, Parity};
+#[cfg(feature = "serde")]
+pub use crypto::key::x_only_serde;
 #[doc(no_inline)]
 pub use crypto::key::{
     FromSliceError, FromWifError, InvalidAddressVersionError, InvalidWifCompressionFlagError,
@@ -37,11 +39,7 @@ define_extension_trait! {
     /// Extension functionality for the [`FullPublicKey`] type.
     pub trait FullPublicKeyExt impl for FullPublicKey {
         /// Returns the script code used to spend a P2WPKH input.
-        ///
-        /// While the type returned is [`WitnessScriptBuf`], this is **not** a witness script and
-        /// should not be used as one. It is a special template defined in BIP 143 which is used
-        /// in place of a witness script for purposes of sighash computation.
-        fn p2wpkh_script_code(&self) -> WitnessScriptBuf {
+        fn p2wpkh_script_code(&self) -> P2wpkhScriptCode {
             script::p2wpkh_script_code(self.wpubkey_hash())
         }
     }
@@ -52,14 +50,10 @@ define_extension_trait! {
     pub trait LegacyPublicKeyExt impl for LegacyPublicKey {
         /// Returns the script code used to spend a P2WPKH input.
         ///
-        /// While the type returned is [`WitnessScriptBuf`], this is **not** a witness script and
-        /// should not be used as one. It is a special template defined in BIP 143 which is used
-        /// in place of a witness script for purposes of sighash computation.
-        ///
         /// # Errors
         ///
         /// Errors if this key is not compressed.
-        fn p2wpkh_script_code(&self) -> Result<WitnessScriptBuf, UncompressedPublicKeyError> {
+        fn p2wpkh_script_code(&self) -> Result<P2wpkhScriptCode, UncompressedPublicKeyError> {
             let key = FullPublicKey::try_from(*self)?;
             Ok(key.p2wpkh_script_code())
         }

@@ -24,13 +24,13 @@ use io::Write;
 
 use crate::opcodes::all::OP_CODESEPARATOR;
 use crate::prelude::{Borrow, BorrowMut};
-use crate::script::{Instruction, ScriptExt as _, ScriptHashableTag};
+use crate::script::{Instruction, ScriptCodeTag, ScriptExt as _, ScriptHashableTag};
 use crate::taproot::{LeafVersion, TapLeafHash, TapLeafTag, TAPROOT_ANNEX_PREFIX};
 use crate::transaction::TransactionExt as _;
 use crate::witness::Witness;
-use crate::{
-    transaction, Amount, ScriptPubKey, Sequence, TapScript, Transaction, TxOut, WitnessScript,
-};
+#[cfg(doc)]
+use crate::ScriptPubKey;
+use crate::{transaction, Amount, ScriptCode, Sequence, TapScript, Transaction, TxOut};
 
 #[rustfmt::skip]            // Keep public re-exports separate.
 #[doc(no_inline)]
@@ -521,13 +521,14 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         input_index: usize,
         prevouts: &Prevouts<T>,
         sighash_type: TapSighashType,
+        annex: Option<Annex>,
     ) -> Result<TapSighash, TaprootError> {
         let mut enc = sha256t::Hash::<TapSighashTag>::engine();
         self.taproot_encode_signing_data_to(
             &mut enc,
             input_index,
             prevouts,
-            None,
+            annex,
             None,
             sighash_type,
         )
@@ -538,22 +539,24 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
 
     /// Computes the BIP-0341 sighash for a script spend.
     ///
-    /// Assumes the default `OP_CODESEPARATOR` position of `0xFFFFFFFF`. Custom values can be
-    /// provided through the more fine-grained API of [`SighashCache::taproot_encode_signing_data_to`].
+    /// `code_separator_pos` is the opcode position of the last executed `OP_CODESEPARATOR`, or
+    /// `None` if no `OP_CODESEPARATOR` was executed. `None` and `Some(0xFFFFFFFF)` are equivalent.
     pub fn taproot_script_spend_signature_hash<S: Into<TapLeafHash>, T: Borrow<TxOut>>(
         &mut self,
         input_index: usize,
         prevouts: &Prevouts<T>,
         leaf_hash: S,
         sighash_type: TapSighashType,
+        annex: Option<Annex>,
+        code_separator_pos: Option<u32>,
     ) -> Result<TapSighash, TaprootError> {
         let mut enc = sha256t::Hash::<TapSighashTag>::engine();
         self.taproot_encode_signing_data_to(
             &mut enc,
             input_index,
             prevouts,
-            None,
-            Some((leaf_hash.into(), 0xFFFFFFFF)),
+            annex,
+            Some((leaf_hash.into(), code_separator_pos.unwrap_or(0xFFFFFFFF))),
             sighash_type,
         )
         .map_err(SigningDataError::unwrap_sighash)?;
@@ -565,7 +568,8 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
     /// [`std::io::Write`] trait.
     ///
     /// `script_code` is dependent on the type of the spend transaction. For p2wpkh use
-    /// [`WitnessScript::p2wpkh_script_code`], for p2wsh just pass in the witness script. (Also see
+    /// [`ScriptPubKey::p2wpkh_script_code`], for p2wsh use the witness script, prepared as
+    /// described in [`ScriptCode`] if it contains `OP_CODESEPARATOR` instructions. (Also see
     /// [`Self::p2wpkh_signature_hash`] and [`SighashCache::p2wsh_signature_hash`].)
     ///
     /// In order to sign, the data written by this function must be hashed using a double SHA256
@@ -575,10 +579,11 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         &mut self,
         mut writer: W,
         input_index: usize,
-        script_code: &WitnessScript,
+        script_code: impl AsRef<ScriptCode>,
         amount: Amount,
         sighash_type: EcdsaSighashType,
     ) -> Result<(), SigningDataError<transaction::InputsIndexError>> {
+        let script_code = script_code.as_ref();
         let zero_hash = [0; 32];
 
         let (sighash, anyone_can_pay) = sighash_type.split_anyonecanpay_flag();
@@ -653,12 +658,15 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
 
     /// Computes the BIP-0143 sighash to spend a p2wsh transaction for any flag type.
     ///
-    /// `witness_script` is the script that goes into the [`Witness`],
-    /// not the one that goes into `script_pubkey` of a [`TxOut`].
+    /// `script_code` is the prepared P2WSH script code derived from the witness script,
+    /// the script that goes into the [`Witness`], not the `script_pubkey` of a [`TxOut`].
+    ///
+    /// The caller must prepare `script_code` as described in [`ScriptCode`].
+    /// This function keeps all remaining `OP_CODESEPARATOR` instructions.
     pub fn p2wsh_signature_hash(
         &mut self,
         input_index: usize,
-        witness_script: &WitnessScript,
+        script_code: impl AsRef<ScriptCode>,
         amount: Amount,
         sighash_type: EcdsaSighashType,
     ) -> Result<SegwitV0Sighash, transaction::InputsIndexError> {
@@ -666,7 +674,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         self.segwit_v0_encode_signing_data_to(
             &mut enc,
             input_index,
-            witness_script,
+            script_code,
             amount,
             sighash_type,
         )
@@ -687,8 +695,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
     ///
     /// # Warning
     ///
-    /// - The caller must remove everything up to and including the last
-    ///   **executed** `OP_CODESEPARATOR` before the signature check.
+    /// - The caller must prepare `script_code` as described in [`ScriptCode`].
     ///   This function removes all remaining `OP_CODESEPARATOR` instructions
     ///   when encoding `script_code`.
     /// - Does NOT handle the sighash single bug (see "Return type" section)
@@ -697,13 +704,14 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
     ///
     /// This function can't handle the SIGHASH_SINGLE bug internally, so it returns [`EncodeSigningDataResult`]
     /// that must be handled by the caller (see [`EncodeSigningDataResult::is_sighash_single_bug`]).
-    pub fn legacy_encode_signing_data_to<W: Write, T: ScriptHashableTag>(
+    pub fn legacy_encode_signing_data_to<W: Write>(
         &self,
         mut writer: W,
         input_index: usize,
-        script_code: &crate::script::Script<T>,
+        script_code: impl AsRef<ScriptCode>,
         sighash_type: EcdsaSighashType,
     ) -> EncodeSigningDataResult<SigningDataError<transaction::InputsIndexError>> {
+        let script_code = script_code.as_ref();
         // Validate input_index.
         if let Err(e) = self.tx.borrow().tx_in(input_index) {
             return EncodeSigningDataResult::WriteResult(Err(SigningDataError::Sighash(e)));
@@ -721,11 +729,11 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
             return EncodeSigningDataResult::SighashSingleBug;
         }
 
-        fn encode_signing_data_to_inner<W: Write, T: ScriptHashableTag>(
+        fn encode_signing_data_to_inner<W: Write>(
             self_: &Transaction,
             mut writer: W,
             input_index: usize,
-            script_code: &crate::script::Script<T>,
+            script_code: &ScriptCode,
             sighash_type: EcdsaSighashType,
         ) -> Result<(), io::Error> {
             let (sighash, anyone_can_pay) = sighash_type.split_anyonecanpay_flag();
@@ -744,8 +752,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
                     if n == input_index {
                         legacy_encode_script_code_to(script_code, &mut writer)?;
                     } else {
-                        // TODO: Use ScriptCode instead of ScriptPubKey once it exists (see #6079)
-                        io::encode_to_writer(ScriptPubKey::new(), &mut writer)?;
+                        io::encode_to_writer(ScriptCode::new(), &mut writer)?;
                     }
                     if n != input_index
                         && (sighash == EcdsaSighashType::Single
@@ -816,10 +823,10 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
     ///
     /// See [`Self::legacy_encode_signing_data_to`] for the requirements on
     /// `script_code` and the handling of `OP_CODESEPARATOR`.
-    pub fn legacy_signature_hash<T: ScriptHashableTag>(
+    pub fn legacy_signature_hash(
         &self,
         input_index: usize,
-        script_code: &crate::script::Script<T>,
+        script_code: impl AsRef<ScriptCode>,
         sighash_type: EcdsaSighashType,
     ) -> Result<LegacySighash, transaction::InputsIndexError> {
         let mut engine = LegacySighash::engine();
@@ -956,8 +963,8 @@ fn is_invalid_use_of_sighash_single(
     sighash.is_single() && input_index >= outputs_len
 }
 
-fn legacy_encode_script_code_to<W: Write, T: ScriptHashableTag>(
-    script_code: &crate::script::Script<T>,
+fn legacy_encode_script_code_to<W: Write>(
+    script_code: &ScriptCode,
     writer: &mut W,
 ) -> Result<(), io::Error> {
     let bytes = script_code.as_bytes();
@@ -985,7 +992,7 @@ fn legacy_encode_script_code_to<W: Write, T: ScriptHashableTag>(
     let mut instructions = script_code.instruction_indices();
 
     loop {
-        let offset = bytes.len() - instructions.as_script::<T>().len();
+        let offset = bytes.len() - instructions.as_script::<ScriptCodeTag>().len();
         match instructions.next() {
             Some(Ok((index, Instruction::Op(OP_CODESEPARATOR)))) => {
                 writer.write_all(&bytes[start..index])?;
@@ -1391,7 +1398,8 @@ pub mod error {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
                 Self::Io(error) => write_err!(f, "failed to write sighash data"; error),
-                Self::Sighash(error) => write_err_unchecked_source!(f, "failed to compute sighash data"; error),
+                Self::Sighash(error) =>
+                    write_err_unchecked_source!(f, "failed to compute sighash data"; error),
             }
         }
     }
@@ -1436,7 +1444,7 @@ mod tests {
 
     #[test]
     fn legacy_script_code_separator() {
-        let script_code = ScriptPubKey::from_bytes(&[0xab, 0x4c, 0x01, 0xab, 0xab]);
+        let script_code = ScriptCode::from_bytes(&[0xab, 0x4c, 0x01, 0xab, 0xab]);
         let mut encoded = Vec::new();
         legacy_encode_script_code_to(script_code, &mut encoded).expect("vecs don't error");
         assert_eq!(encoded, [0x03, 0x4c, 0x01, 0xab]);
@@ -1444,7 +1452,7 @@ mod tests {
 
     #[test]
     fn legacy_script_code_incomplete_push() {
-        let script_code = ScriptPubKey::from_bytes(&[0xab, 0x4c, 0x02, 0xab]);
+        let script_code = ScriptCode::from_bytes(&[0xab, 0x4c, 0x02, 0xab]);
         let mut encoded = Vec::new();
         legacy_encode_script_code_to(script_code, &mut encoded).expect("vecs don't error");
         assert_eq!(encoded, [0x03, 0x4c, 0x02]);
@@ -1493,7 +1501,7 @@ mod tests {
             "01365724000000000023542156b39dab4f8f3508e0432cfb41fab110170acaa2d4c42539cb90a4dc7c093bc500",
             0,
             "33ca0ebfb4a945eeee9569fc0f5040221275f88690b7f8592ada88ce3bdf6703",
-            TapSighashType::Default, None, None, None
+            TapSighashType::Default, None, None, None, None
         );
 
         test_taproot_sighash(
@@ -1501,7 +1509,7 @@ mod tests {
             "02591f220000000000225120f25ad35583ea31998d968871d7de1abd2a52f6fe4178b54ea158274806ff4ece48fb310000000000225120f25ad35583ea31998d968871d7de1abd2a52f6fe4178b54ea158274806ff4ece",
             1,
             "626ab955d58c9a8a600a0c580549d06dc7da4e802eb2a531f62a588e430967a8",
-            TapSighashType::All, None, None, None
+            TapSighashType::All, None, None, None, None
         );
 
         test_taproot_sighash(
@@ -1509,7 +1517,7 @@ mod tests {
             "01c4811000000000002251201bf9297d0a2968ae6693aadd0fa514717afefd218087a239afb7418e2d22e65c",
             0,
             "dfa9437f9c9a1d1f9af271f79f2f5482f287cdb0d2e03fa92c8a9b216cc6061c",
-            TapSighashType::AllPlusAnyoneCanPay, None, None, None
+            TapSighashType::AllPlusAnyoneCanPay, None, None, None, None
         );
 
         test_taproot_sighash(
@@ -1517,7 +1525,7 @@ mod tests {
             "0144c84d0000000000225120e3f2107989c88e67296ab2faca930efa2e3a5bd3ff0904835a11c9e807458621",
             0,
             "3129de36a5d05fff97ffca31eb75fcccbbbc27b3147a7a36a9e4b45d8b625067",
-            TapSighashType::None, None, None, None
+            TapSighashType::None, None, None, None, None
         );
 
         test_taproot_sighash(
@@ -1525,7 +1533,7 @@ mod tests {
             "013fed110000000000225120eb536ae8c33580290630fc495046e998086a64f8f33b93b07967d9029b265c55",
             0,
             "2441e8b0e063a2083ee790f14f2045022f07258ddde5ee01de543c9e789d80ae",
-            TapSighashType::NonePlusAnyoneCanPay, None, None, None
+            TapSighashType::NonePlusAnyoneCanPay, None, None, None, None
         );
 
         test_taproot_sighash(
@@ -1533,7 +1541,7 @@ mod tests {
             "01efa558000000000022512007071ea3dc7e331b0687d0193d1e6d6ed10e645ef36f10ef8831d5e522ac9e80",
             0,
             "30239345177cadd0e3ea413d49803580abb6cb27971b481b7788a78d35117a88",
-            TapSighashType::Single, None, None, None
+            TapSighashType::Single, None, None, None, None
         );
 
         test_taproot_sighash(
@@ -1541,7 +1549,7 @@ mod tests {
             "0107af4e00000000002251202c36d243dfc06cb56a248e62df27ecba7417307511a81ae61aa41c597a929c69",
             0,
             "bf9c83f26c6dd16449e4921f813f551c4218e86f2ec906ca8611175b41b566df",
-            TapSighashType::SinglePlusAnyoneCanPay, None, None, None
+            TapSighashType::SinglePlusAnyoneCanPay, None, None, None, None
         );
     }
 
@@ -1554,6 +1562,7 @@ mod tests {
             "3b003000add359a364a156e73e02846782a59d0d95ca8c4638aaad99f2ef915c",
             TapSighashType::SinglePlusAnyoneCanPay,
             Some("507b979802e62d397acb29f56743a791894b99372872fc5af06a4f6e8d242d0615cda53062bb20e6ec79756fe39183f0c128adfe85559a8fa042b042c018aa8010143799e44f0893c40e1e"),
+            None,
             None,
             None,
         );
@@ -1570,6 +1579,7 @@ mod tests {
             None,
             Some("20cc4e1107aea1d170c5ff5b6817e1303010049724fb3caa7941792ea9d29b3e2bacab"),
             None,
+            None,
         );
     }
 
@@ -1584,6 +1594,7 @@ mod tests {
             None,
             None,
             Some("15a2530514e399f8b5cf0b3d3112cf5b289eaa3e308ba2071b58392fdc6da68a"),
+            None,
         );
     }
 
@@ -1598,6 +1609,52 @@ mod tests {
             Some("50a6272b470e1460e3332ade7bb14b81671c564fb6245761bd5bd531394b28860e0b3808ab229fb51791fb6ae6fa82d915b2efb8f6df83ae1f5ab3db13e30928875e2a22b749d89358de481f19286cd4caa792ce27f9559082d227a731c5486882cc707f83da361c51b7aadd9a0cf68fe7480c410fa137b454482d9a1ebf0f96d760b4d61426fc109c6e8e99a508372c45caa7b000a41f8251305da3f206c1849985ba03f3d9592832b4053afbd23ab25d0465df0bc25a36c223aacf8e04ec736a418c72dc319e4da3e972e349713ca600965e7c665f2090d5a70e241ac164115a1f5639f28b1773327715ca307ace64a2de7f0e3df70a2ffee3857689f909c0dad46d8a20fa373a4cc6eed6d4c9806bf146f0d76baae1"),
             Some("7520ab9160dd8299dc1367659be3e8f66781fe440d52940c7f8d314a89b9f2698d406ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6ead6eadac"),
             None,
+            None,
+        );
+    }
+
+    #[test]
+    fn sighashes_with_code_separator() {
+        // Script path spends from Bitcoin Core's `script_assets_test.json`. The signature of each
+        // spend verifies against the expected sighash.
+
+        // sighash/codesep_pk
+        test_taproot_sighash(
+            "02000000034f7934adcb0534e6228761a7c93463ffc82acc81e3b5e4dad99cf5777b5f7d522b01000000040ade8134661f3e57f35597df94ee61c0e7d29ae053bf3cc04b3161f087c7fca0ee30b7c6000000009b0cbba134661f3e57f35597df94ee61c0e7d29ae053bf3cc04b3161f087c7fca0ee30b7b200000000700a9fa60447ae6c00000000001976a91454198cf320e2e48fb333572ef9e05ad68c33566d88ac58020000000000001976a91448525f330a27540194162951c1678cc6b9e79b8b88ac58020000000000001976a91448525f330a27540194162951c1678cc6b9e79b8b88ac58020000000000001976a91454198cf320e2e48fb333572ef9e05ad68c33566d88acb5010000",
+            "0317144c0000000000225120ab4fb9e5a16a68191e8bc6fb181beef306f6a89bfa39b735793fbdb4ad516efcd6a91200000000002251206ea719654c1bfee09219cbee8e1895f04c37f5b83a45014aa3000531a6f380568cb51000000000002251206ea719654c1bfee09219cbee8e1895f04c37f5b83a45014aa3000531a6f38056",
+            2,
+            "b6edee6ec9193029b9801085dd59da0dd278b4198c7fc3a87e6bceea65020fcf",
+            TapSighashType::NonePlusAnyoneCanPay,
+            Some("5076635a14d4edb6ee19fd651eb43281a8840fc162fd8906f5c0a0ae190a0c3e9a23befb8b181b26c6244577d0f542d2ad19d49635e32bb5d2037aa85d23e81bc9789c75907d4e327c0bc91df7b2cb351627476b19cee7f5c7b80baf9d996f17a5dc66a54cc71fec77e0da9e7d7eb1d97aaa5394db046d41179e95cb7c905f1adf7fc7b0fb8d749d52ee0f50dda4ec6f3cd89abaca114bdfbd93659762c7b803fd05a360f255de495f6da41603c1f1b2c3904e2045bd81827c60f3ba60de4b4c596b69138ef196ef1c2c7f5d4a69e3fde71b6995e2cd788e4c98d6b3"),
+            Some("ab20f6acd1ae90f996222528e266cbd9570963200b0e1c8bd4234322718e23a53747ac"),
+            None,
+            Some(0),
+        );
+
+        // sighash/branched_codesep/left
+        test_taproot_sighash(
+            "8978a00f01c8fcf6c075055bed05468c08217fcd9834a0cea986e17a5461ad52f2c96314c51302000000505f90cb018ea22401000000001600146f246454d9cda265b3944397c63270c3c6b160b658010000",
+            "01cab2b101000000002251203cf3576a5e98c16948a4f626ce0fb7ac42b499875f18ea92ad913ae63522d523",
+            0,
+            "9b0809681aa44cb159b62c397e6dc1b14b6d30c4511be1e0915a7d46239b94bb",
+            TapSighashType::Default,
+            None,
+            Some("01897563ab20703009f4e84cd691802b7a9075eabd8d0df500d719827f22b1301a2e2874038967ab20ef1c38d2738c8d14e5e75007cb88258f2c0b5f9bc8b7e9aa9748fdd2f1a5b37468ac"),
+            None,
+            Some(3),
+        );
+
+        // sighash/branched_codesep/right
+        test_taproot_sighash(
+            "01000000015f82c1147b9f62a9e29134b5db46f02604f1889a358b91002826bfa07148b4235b01000000fce93b0201cac9160100000000160014430c9945e707a7d3c561538a216689ea73bb3befc31e114b",
+            "01974841010000000022512071e870a57b9ef88e09a8fb18ca536507c7435016508923c52c373a179c8b4699",
+            0,
+            "3deb71509aa8874803ff889a134c6410e5de4221a3408fa13dadfb3aebea251d",
+            TapSighashType::None,
+            None,
+            Some("03edf8e07563ab20b2dadd4cc7d9d89162c72664855491dbe6dbf3ff5d7dc532643ab99582fafbba67ab2081341db0ebeef53a7d269962467fdc49e9b72ea1ea58e7bf3d0af939f77af3b968ac"),
+            None,
+            Some(6),
         );
     }
 
@@ -1678,6 +1735,7 @@ mod tests {
         annex_hex: Option<&str>,
         script_hex: Option<&str>,
         script_leaf_hash: Option<&str>,
+        code_separator_pos: Option<u32>,
     ) {
         let tx_bytes = hex::decode_to_vec(tx_hex).unwrap();
         let tx: Transaction = decode_from_slice(&tx_bytes).unwrap();
@@ -1702,8 +1760,7 @@ mod tests {
             (_, Some(script_leaf_hash)) => Some(script_leaf_hash.parse::<TapLeafHash>().unwrap()),
             _ => None,
         };
-        // All our tests use the default `0xFFFFFFFF` codeseparator value
-        let leaf_hash = leaf_hash.map(|lh| (lh, 0xFFFFFFFF));
+        let leaf_hash = leaf_hash.map(|lh| (lh, code_separator_pos.unwrap_or(0xFFFFFFFF)));
 
         let prevouts = if sighash_type.split_anyonecanpay_flag().1 && tx_bytes[0] % 2 == 0 {
             // for anyonecanpay the `Prevouts::All` variant is good anyway, but sometimes we want to
@@ -1716,10 +1773,28 @@ mod tests {
         let mut sighash_cache = SighashCache::new(&tx);
 
         let hash = sighash_cache
-            .taproot_signature_hash(input_index, &prevouts, annex, leaf_hash, sighash_type)
+            .taproot_signature_hash(input_index, &prevouts, annex.clone(), leaf_hash, sighash_type)
             .unwrap();
         let expected = hex::decode_to_vec(expected_hash).unwrap();
         assert_eq!(expected, hash.to_byte_array());
+
+        let spend_hash = match leaf_hash {
+            Some((leaf_hash, _)) => sighash_cache.taproot_script_spend_signature_hash(
+                input_index,
+                &prevouts,
+                leaf_hash,
+                sighash_type,
+                annex,
+                code_separator_pos,
+            ),
+            None => sighash_cache.taproot_key_spend_signature_hash(
+                input_index,
+                &prevouts,
+                sighash_type,
+                annex,
+            ),
+        };
+        assert_eq!(spend_hash.unwrap(), hash);
     }
 
     #[test]
@@ -1907,6 +1982,48 @@ mod tests {
             &hex::decode_to_vec("de984f44532e2173ca0d64314fcefe6d30da6f8cf27bafa706da61df8a226c83")
                 .unwrap()[..],
         );
+    }
+
+    #[test]
+    fn bip143_p2wsh_separator() {
+        // Source: https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#native-p2wsh
+        let tx = decode_from_slice::<Transaction>(&hex!(
+            "0100000002fe3dc9208094f3ffd12645477b3dc56f60ec4fa8e6f5d67c565d1c6b9216b36e00000000\
+             00ffffffff0815cf020f013ed6cf91d29f4202e8a58726b1ac6c79da47c23d1bee0a6925f800000000\
+             00ffffffff0100f2052a010000001976a914a30741f8145e5acadf23f751864167f32e0963f788ac00000000"
+        ))
+        .unwrap();
+        let witness_script = hex!(
+            "21026dccc749adc2a9d0d89497ac511f760f45c47dc5ed9cf352a58ac706453880aeadab\
+             210255a9626aebf5e29c0e6538428ba0d1dcf6ca98ffdf086aa8ced5e0d0215ea465ac"
+        );
+        let amount = Amount::from_sat(4_900_000_000).unwrap();
+        let mut cache = SighashCache::new(&tx);
+
+        for (script_code, expected) in [
+            // At CHECKSIGVERIFY, OP_CODESEPARATOR has not executed and must be kept.
+            (
+                ScriptCode::from_bytes(&witness_script),
+                "82dde6e4f1e94d02c2b7ad03d2115d691f48d064e9d52f58194a6637e4194391",
+            ),
+            // At CHECKSIG, the caller removes the prefix through OP_CODESEPARATOR at byte 35.
+            (
+                ScriptCode::from_bytes(&witness_script[36..]),
+                "fef7bd749cce710c5c052bd796df1af0d935e59cea63736268bcbe2d2134fc47",
+            ),
+        ] {
+            let mut enc = SegwitV0Sighash::engine();
+            cache
+                .segwit_v0_encode_signing_data_to(
+                    &mut enc,
+                    1,
+                    script_code,
+                    amount,
+                    EcdsaSighashType::Single,
+                )
+                .unwrap();
+            assert_eq!(SegwitV0Sighash::from_engine(enc), expected.parse().unwrap());
+        }
     }
 
     // Note, if you are looking at the test vectors in BIP-0143 and wondering why there is a `cf`

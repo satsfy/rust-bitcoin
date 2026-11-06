@@ -369,9 +369,7 @@ pub trait TapTweak {
     ///  * c is the commitment data
     ///  * G is the generator point
     ///
-    /// # Returns
-    ///
-    /// The tweaked key, with the required parity.
+    /// Returns the tweaked key, with the required parity.
     ///
     /// [`Keypair`]: crypto::Keypair
     fn tap_tweak(&self, merkle_root: Option<TapNodeHash>) -> Self::TweakedAux;
@@ -397,9 +395,7 @@ impl TapTweak for UntweakedPublicKey {
     ///  * c is the commitment data
     ///  * G is the generator point
     ///
-    /// # Returns
-    ///
-    /// The tweaked key and its parity.
+    /// Returns the tweaked key and its parity.
     fn tap_tweak(&self, merkle_root: Option<TapNodeHash>) -> TweakedPublicKey {
         let tweak = TapTweakHash::from_key_and_merkle_root(*self, merkle_root).to_scalar();
         let output_key = self.add_tweak(&tweak).expect("Tap tweak failed");
@@ -424,9 +420,7 @@ impl TapTweak for UntweakedKeypair {
     /// a Taproot key which can [provably only be spent via
     /// keyspend](https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#cite_note-23).
     ///
-    /// # Returns
-    ///
-    /// The tweaked keypair.
+    /// Returns the tweaked keypair.
     fn tap_tweak(&self, merkle_root: Option<TapNodeHash>) -> TweakedKeypair {
         let pubkey = XOnlyPublicKey::from_keypair(self);
         let tweak = TapTweakHash::from_key_and_merkle_root(pubkey, merkle_root).to_scalar();
@@ -550,5 +544,52 @@ mod test {
     fn leaf_version_future_fmt() {
         let v = LeafVersion::Future(FutureLeafVersion(1));
         assert_eq!(alloc::format!("{:#}", v), "future_script_0x01");
+    }
+
+    #[test]
+    fn leaf_version_future_valid() {
+        for version in [0x00, 0x02, 0xc2, 0xc4, 0xfe] {
+            let lv = LeafVersion::from_consensus(version).unwrap();
+            assert_eq!(lv.to_consensus(), version);
+            match lv {
+                LeafVersion::Future(f) => assert_eq!(f.to_consensus(), version),
+                LeafVersion::TapScript => panic!("expected Future leaf version"),
+            }
+        }
+    }
+
+    #[test]
+    fn leaf_version_invalid_rejected() {
+        let err = LeafVersion::from_consensus(TAPROOT_ANNEX_PREFIX).unwrap_err();
+        assert_eq!(err.invalid_leaf_version(), 0x50);
+
+        for odd in [0x01, 0x03, 0x51, 0xc1, 0xc3, 0xff] {
+            let err = LeafVersion::from_consensus(odd).unwrap_err();
+            assert_eq!(err.invalid_leaf_version(), odd);
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_leaf_version() {
+        use serde::de::value::Error as DeError;
+        use serde::de::IntoDeserializer as _;
+        use serde::Deserialize;
+
+        let de_u8 = |val: u8| -> Result<LeafVersion, DeError> {
+            LeafVersion::deserialize(val.into_deserializer())
+        };
+
+        let future = LeafVersion::from_consensus(0xc2).unwrap();
+        let deserialized = de_u8(0xc2).unwrap();
+        assert_eq!(deserialized, future);
+
+        assert!(de_u8(80).is_err());
+        assert!(de_u8(193).is_err());
+
+        let de_u16 = |val: u16| -> Result<LeafVersion, DeError> {
+            LeafVersion::deserialize(val.into_deserializer())
+        };
+        assert!(de_u16(256).is_err());
     }
 }

@@ -18,7 +18,7 @@ use crate::policy::{DUST_RELAY_TX_FEE, MAX_OP_RETURN_RELAY};
 use crate::prelude::{String, ToString};
 use crate::script::{self, ScriptPubKeyBufExt as _};
 use crate::taproot::{LeafVersion, TapLeafHash, TapLeafHashExt as _, TapNodeHash};
-use crate::{internal_macros, Amount, FeeRate, ScriptPubKeyBuf, ToU64 as _, WitnessScriptBuf};
+use crate::{internal_macros, Amount, FeeRate, P2wpkhScriptCode, ScriptPubKeyBuf, ToU64 as _};
 
 internal_macros::define_extension_trait! {
     /// Extension functionality for the [`Script`] type.
@@ -150,12 +150,8 @@ internal_macros::define_extension_trait! {
         /// Returns the script code used for spending a P2WPKH output if this script is a script pubkey
         /// for a P2WPKH output. The `scriptCode` is described in [BIP-0143].
         ///
-        /// While the type returned is [`WitnessScriptBuf`], this is **not** a witness script and
-        /// should not be used as one. It is a special template defined in BIP 143 which is used
-        /// in place of a witness script for purposes of sighash computation.
-        ///
         /// [BIP-0143]: <https://github.com/bitcoin/bips/blob/99701f68a88ce33b2d0838eb84e115cef505b4c2/bip-0143.mediawiki>
-        fn p2wpkh_script_code(&self) -> Option<WitnessScriptBuf>
+        fn p2wpkh_script_code(&self) -> Option<P2wpkhScriptCode>
         where T: ScriptHashableTag
         {
             if self.is_p2wpkh() {
@@ -187,7 +183,36 @@ crate::internal_macros::define_extension_trait! {
         /// Computes leaf hash of tapscript.
         #[inline]
         fn tapscript_leaf_hash(&self) -> TapLeafHash {
-            TapLeafHash::from_script(self, LeafVersion::TapScript)
+            TapLeafHash::from_script(self.as_ref(), LeafVersion::TapScript)
+        }
+
+        /// Checks whether this tapscript is valid without being executed, by scanning it for
+        /// `OP_SUCCESSx` as Bitcoin Core does.
+        ///
+        /// Under leaf version `0xc0`, a script is immediately valid if it holds a reachable
+        /// `OP_SUCCESSx`, one that parsing the script meets as an opcode rather than as push data.
+        /// Consensus then accepts it whatever else it holds, even a failing `OP_VERIFY` or
+        /// `OP_RETURN` before it. Check a script supplied by a counterparty before committing to a
+        /// leaf built on it.
+        ///
+        /// Push data is skipped, pushes need not be minimal, and nothing after the first
+        /// `OP_SUCCESSx` is read. `Ok(false)` means that only execution can tell whether the script
+        /// is valid.
+        ///
+        /// # Errors
+        ///
+        /// [`script::Error::EarlyEndOfScript`] if a push runs past the end of the script before any
+        /// `OP_SUCCESSx`. The script is then invalid: Bitcoin Core's scan stops there with
+        /// `SCRIPT_ERR_BAD_OPCODE`, before any `OP_SUCCESSx` could make it valid.
+        fn is_immediately_valid(&self) -> Result<bool, script::Error> {
+            for instruction in self.instructions() {
+                if let Instruction::Op(op) = instruction? {
+                    if op.classify(opcodes::ClassifyContext::TapScript) == opcodes::Class::SuccessOp {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
         }
 
         /// Computes P2TR output with a given internal key and a single script spending path equal to
@@ -459,10 +484,15 @@ internal_macros::define_extension_trait! {
         /// This does not guarantee that this represents a P2SH input [`ScriptSig`].
         /// It merely gets the last push of the script.
         ///
+        /// Returns `None` if the script is not push only (see [`ScriptExt::is_push_only`]),
+        /// matching Bitcoin Core's `IsPushOnly` check. This means `OP_RESERVED` and the
+        /// `OP_PUSHNUM` opcodes are allowed before the final push. Also returns `None` if
+        /// the last instruction is not a data push.
+        ///
         /// Use [`ScriptPubKey::is_p2sh`] on the scriptPubKey to check whether it is actually a P2SH script.
         fn redeem_script(&self) -> Option<&RedeemScript> {
             // Script must consist entirely of pushes.
-            if self.instructions().any(|i| i.is_err() || i.unwrap().push_bytes().is_none()) {
+            if !self.is_push_only() {
                 return None;
             }
 

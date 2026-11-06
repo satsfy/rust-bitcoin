@@ -2,7 +2,7 @@
 
 //! A witness.
 //!
-//! This module contains the [`Witness`] struct and related methods to operate on it
+//! This module contains the [`Witness`] struct and related methods to operate on it.
 //!
 //! # Examples
 //!
@@ -98,7 +98,7 @@ const MAX_WITNESS_SIZE: usize = 4_000_000;
 /// For serialization and deserialization performance it is stored internally as a single [`Vec`],
 /// saving some allocations.
 ///
-/// [SegWit upgrade]: <https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki>
+/// [SegWit upgrade]: <https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki>
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Witness {
     /// Contains the witness [`Vec<Vec<u8>>`] serialization.
@@ -133,16 +133,18 @@ impl Witness {
         Self { content: Vec::new(), witness_elements: 0, indices_start: 0 }
     }
 
-    /// Constructs a new [`Witness`] object from a slice of bytes slices where each slice is a witness item.
+    /// Constructs a new [`Witness`] object from a slice of byte slices where each slice is a witness
+    /// item.
     ///
     /// # Panics
     ///
-    /// Panics if the starting offset of the last element within encoded bytes exceeds `u32::MAX`. When
-    /// the sum of the lengths of the elements before the last one, including their length prefixes,
-    /// is larger than that maximum.
+    /// Panics if the starting offset of the last element within the encoded bytes exceeds
+    /// `u32::MAX`, i.e., if the sum of the lengths of the elements before the last one, including
+    /// their length prefixes, is larger than that maximum.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use bitcoin_primitives::witness::Witness;
     ///
     /// let mut witness = Witness::from_slice(&[b"A", b"B", b"C", b"D"]);
@@ -182,7 +184,7 @@ impl Witness {
     #[inline]
     pub fn is_empty(&self) -> bool { self.witness_elements == 0 }
 
-    /// Returns a struct implementing [`Iterator`].
+    /// Returns an iterator over the witness elements.
     #[must_use = "iterators are lazy and do nothing unless consumed"]
     #[inline]
     pub fn iter(&self) -> Iter<'_> {
@@ -194,10 +196,6 @@ impl Witness {
     pub const fn len(&self) -> usize { self.witness_elements }
 
     /// Returns the number of bytes this witness contributes to a transaction's total size.
-    ///
-    /// # Panics
-    ///
-    /// If the size calculation overflows.
     ///
     /// # Examples
     ///
@@ -289,7 +287,8 @@ impl Witness {
     /// Returns [`None`] if the requested index is beyond the witness's elements.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use bitcoin_primitives::witness::Witness;
     ///
     /// let mut witness = Witness::new();
@@ -358,7 +357,7 @@ impl Witness {
     }
 }
 
-/// Correctness Requirements: value must always fit within u32
+/// Correctness requirements: `value` must always fit within a `u32`.
 #[inline]
 #[track_caller]
 fn encode_cursor(bytes: &mut [u8], start_of_indices: usize, index: usize, value: usize) {
@@ -933,7 +932,7 @@ impl<'a> Arbitrary<'a> for Witness {
     }
 }
 
-/// Cast a decoded length prefix to a `usize`.
+/// Casts a decoded length prefix to a `usize`.
 ///
 /// This function is basically just defensive. For all sane use cases the length prefix should be
 /// less than `MAX_VEC_SIZE` (on a 32-bit machine). If the value is bigger that `u16::MAX` and we
@@ -1073,8 +1072,7 @@ pub mod error {
             match self.0 {
                 E::LengthPrefixDecode(ref e) =>
                     write_err!(f, "failed to decode witness length prefix"; e),
-                E::UnexpectedEof(ref e) =>
-                    write_err!(f, "failed to decode witness"; e),
+                E::UnexpectedEof(ref e) => write_err!(f, "failed to decode witness"; e),
                 E::WitnessTooLarge(size) => write!(
                     f,
                     "serialized witness size of {} bytes exceeds the maximum of {}",
@@ -1874,6 +1872,12 @@ mod tests {
 
         let witness = Witness { content, witness_elements: 1, indices_start };
         assert!(witness.iter().next().is_none());
+    }
+
+    #[test]
+    fn cast_to_usize_accepts_max_vec_size() {
+        assert_eq!(cast_to_usize_if_valid(4_000_000), Some(4_000_000));
+        assert_eq!(cast_to_usize_if_valid(4_000_001), None);
     }
 
     #[test]

@@ -28,8 +28,48 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-rbmt
+      - name: "Read compiler version"
+        id: rustc
+        run: |
+          version=$(cargo rbmt toolchains --${{ matrix.toolchain }})
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: "Restore dependency artifacts"
+        id: deps-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target
+            ~/.cargo/registry
+          key: test-deps-${{ runner.os }}-rustc-${{ steps.rustc.outputs.version }}-${{ matrix.dep }}-${{ hashFiles(format('Cargo-{0}.lock', matrix.dep)) }}
       - name: "Run tests"
         run: cargo rbmt test --toolchain ${{ matrix.toolchain }} --lock-file ${{ matrix.dep }}
+      - name: "Prune workspace artifacts"
+        id: prune
+        if: github.event_name == 'push' && steps.deps-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          target=$(cargo metadata --format-version 1 --no-deps | jq -r .target_directory)
+          for profile in "$target"/*/ "$target"/*/*/; do
+            [ -d "$profile.fingerprint" ] || continue
+            for dep_info in "$profile"deps/*.d; do
+              grep -qs '^[^/#]' "$dep_info" || continue
+              hash=${dep_info%.d}
+              hash=${hash##*-}
+              rm -rf "$profile".fingerprint/*-"$hash" "$profile"deps/*-"$hash" "$profile"deps/*-"$hash".*
+            done
+            find "$profile" -maxdepth 1 -type f ! -name .cargo-lock -delete
+            rm -rf "$profile"examples "$profile"incremental
+          done
+          du -sh "$target" ~/.cargo/registry
+      - name: "Save dependency artifacts"
+        if: github.event_name == 'push' && steps.deps-cache.outputs.cache-hit != 'true' && steps.prune.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target
+            ~/.cargo/registry
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
   Check:
     runs-on: ubuntu-24.04
@@ -61,7 +101,7 @@ jobs:
         id: api_check
         run: |
           set +e
-          cargo rbmt api --baseline ${{ github.event.pull_request.base.sha || github.event.before }}
+          cargo rbmt api --baseline "$(git merge-base HEAD "origin/${GITHUB_BASE_REF:-master}")"
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
       - name: "Save API diff state"
         if: github.event_name == 'pull_request'
@@ -102,7 +142,7 @@ jobs:
           fetch-depth: 0 # History required for version bump detection.
       - uses: ./.github/actions/setup-rbmt
       - name: "Run pre-release checks"
-        run: cargo rbmt prerelease --baseline ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: cargo rbmt prerelease --baseline "$(git merge-base HEAD "origin/${GITHUB_BASE_REF:-master}")"
 
   Embedded:
     runs-on: ubuntu-24.04
@@ -182,7 +222,7 @@ jobs:
         with:
           persist-credentials: false
       - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - name: "Add architecture i386 and install dependencies"
@@ -217,7 +257,7 @@ jobs:
         with:
           persist-credentials: false
       - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: ${{ needs.Prepare.outputs.nightly_version }}
       - name: "Install rust-src"
@@ -255,7 +295,7 @@ jobs:
         with:
           persist-credentials: false
       - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - name: "Run policy script"
@@ -293,7 +333,7 @@ jobs:
         with:
           persist-credentials: false
       - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - name: "Check Encode coverage"
@@ -309,14 +349,14 @@ jobs:
           persist-credentials: false
           fetch-depth: 0 # required for full diff context
       - name: "Select toolchain"
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - name: "Fetch base branch for diff"
         run: git fetch origin master
       - name: "Retrieve relative diff"
         run: git diff origin/master.. -- '*.rs' | tee git.diff
-      - uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2.85.8
+      - uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: cargo-mutants
       - run: cargo mutants --no-shuffle --in-diff git.diff

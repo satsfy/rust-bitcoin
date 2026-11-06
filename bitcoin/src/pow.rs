@@ -19,7 +19,9 @@ use crate::network::Params;
 #[doc(inline)]
 pub use primitives::pow::{error, CompactTarget, CompactTargetEncoder, CompactTargetDecoder, Target, Work};
 #[doc(no_inline)]
-pub use primitives::pow::{ParseTargetError, ParseWorkError};
+pub use primitives::pow::{
+    InvalidCompactTargetError, ParseTargetError, ParseWorkError, ZeroConversionError,
+};
 
 #[doc(no_inline)]
 pub use self::error::CompactTargetDecoderError;
@@ -50,7 +52,7 @@ impl WorkExt for Work {
 internal_macros::define_extension_trait! {
     /// Extension functionality for the [`Target`] type.
     pub trait TargetExt impl for Target {
-        /// Returns true if block hash is less than or equal to this [`Target`].
+        /// Returns `true` if block hash is less than or equal to this [`Target`].
         ///
         /// Proof-of-work validity for a block requires the hash of the block to be less than or equal
         /// to the target.
@@ -163,8 +165,6 @@ internal_macros::define_extension_trait! {
         /// The difficulty can only decrease or increase by a factor of 4 max on each difficulty
         /// adjustment period.
         ///
-        /// # Returns
-        ///
         /// In line with Bitcoin Core this function may return a target value of zero.
         fn min_transition_threshold(&self) -> Self {
             Self::from_inner(self.to_inner() >> 2)
@@ -244,7 +244,9 @@ where
             let pow_limit = params.max_attainable_target.to_compact_lossy();
 
             // if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2)
-            if new_block_timestamp > current_header.time.to_u32() + params.pow_target_spacing * 2 {
+            if u64::from(new_block_timestamp)
+                > u64::from(current_header.time.to_u32()) + u64::from(params.pow_target_spacing) * 2
+            {
                 Ok(pow_limit)
             } else {
                 let mut header = current_header;
@@ -273,7 +275,7 @@ where
     }
 }
 
-/// Returns true if `height` ends the difficulty period.
+/// Returns `true` if `height` ends the difficulty period.
 fn is_retarget_height(height: BlockHeight, adjustment_interval: u32) -> bool {
     height.to_u32() % adjustment_interval == 0
 }
@@ -285,7 +287,7 @@ internal_macros::define_extension_trait! {
         ///
         /// ref: <https://github.com/bitcoin/bitcoin/blob/0503cbea9aab47ec0a87d34611e5453158727169/src/pow.cpp>
         ///
-        /// Given the previous Target, represented as a [`CompactTarget`], the difficulty is adjusted
+        /// Given the previous target, represented as a [`CompactTarget`], the difficulty is adjusted
         /// by taking the timespan between them, and multiplying the current [`CompactTarget`] by a factor
         /// of the net timespan and expected timespan. The [`CompactTarget`] may not adjust by more than
         /// a factor of 4, or adjust beyond the maximum threshold for the network.
@@ -302,9 +304,7 @@ internal_macros::define_extension_trait! {
         ///
         /// To calculate the timespan, users should first convert their u32 timestamps to i64s before subtracting them
         ///
-        /// # Returns
-        ///
-        /// The expected [`CompactTarget`] recalculation.
+        /// Returns the expected [`CompactTarget`] recalculation.
         fn from_next_work_required(
             last: CompactTarget,
             timespan: i64,
@@ -319,7 +319,10 @@ internal_macros::define_extension_trait! {
             let min_timespan = params.pow_target_timespan >> 2; // Lines 56/57
             let max_timespan = params.pow_target_timespan << 2; // Lines 58/59
             let actual_timespan = timespan.clamp(min_timespan.into(), max_timespan.into());
-            let prev_target: Target = last.into();
+            let prev_target = match Target::from_compact(last) {
+                Ok(target) => target,
+                Err(e) => e.invalid_target(),
+            };
             let maximum_retarget = prev_target.max_transition_threshold(params); // bnPowLimit
             let retarget = prev_target.to_inner(); // bnNew
             let (retarget, _) = retarget.mul_u64(u64::try_from(actual_timespan).expect("clamped value won't be negative"));
@@ -346,9 +349,7 @@ internal_macros::define_extension_trait! {
         /// one would pass the header for Block 2015 as `current` and the header for Block 0 as
         /// `last_epoch_boundary`.
         ///
-        /// # Returns
-        ///
-        /// The expected [`CompactTarget`] recalculation.
+        /// Returns the expected [`CompactTarget`] recalculation.
         fn from_header_difficulty_adjustment(
             last_epoch_boundary: Header,
             current: Header,
@@ -511,8 +512,10 @@ mod tests {
         let starting_bits = CompactTarget::from_consensus(503403001);
         let timespan = params.pow_target_timespan / 5;
         let got = CompactTarget::from_next_work_required(starting_bits, timespan.into(), params);
-        let want =
-            Target::from_compact(starting_bits).min_transition_threshold().to_compact_lossy();
+        let want = Target::from_compact(starting_bits)
+            .unwrap()
+            .min_transition_threshold()
+            .to_compact_lossy();
         assert_eq!(got, want);
     }
 
@@ -522,8 +525,10 @@ mod tests {
         let starting_bits = CompactTarget::from_consensus(503403001);
         let timespan: i64 = -i64::from(params.pow_target_timespan);
         let got = CompactTarget::from_next_work_required(starting_bits, timespan, params);
-        let want =
-            Target::from_compact(starting_bits).min_transition_threshold().to_compact_lossy();
+        let want = Target::from_compact(starting_bits)
+            .unwrap()
+            .min_transition_threshold()
+            .to_compact_lossy();
         assert_eq!(got, want);
     }
 
@@ -533,8 +538,10 @@ mod tests {
         let starting_bits = CompactTarget::from_consensus(403403001); // High difficulty for Signet
         let timespan = 5 * params.pow_target_timespan; // Really slow.
         let got = CompactTarget::from_next_work_required(starting_bits, timespan.into(), &params);
-        let want =
-            Target::from_compact(starting_bits).max_transition_threshold(params).to_compact_lossy();
+        let want = Target::from_compact(starting_bits)
+            .unwrap()
+            .max_transition_threshold(params)
+            .to_compact_lossy();
         assert_eq!(got, want);
     }
 
@@ -609,16 +616,19 @@ mod tests {
         assert_eq!(Target::MAX.difficulty_float(&params), 1.0_f64);
         assert_eq!(
             Target::from_compact(CompactTarget::from_consensus(0x1c00ffff_u32))
+                .unwrap()
                 .difficulty_float(&params),
             256.0_f64
         );
         assert_eq!(
             Target::from_compact(CompactTarget::from_consensus(0x1b00ffff_u32))
+                .unwrap()
                 .difficulty_float(&params),
             65536.0_f64
         );
         assert_eq!(
             Target::from_compact(CompactTarget::from_consensus(0x1a00f3a2_u32))
+                .unwrap()
                 .difficulty_float(&params),
             17628585.065897066_f64
         );
@@ -627,8 +637,8 @@ mod tests {
     #[test]
     fn roundtrip_target_work() {
         let target = u32_to_target(0xdeadbeef_u32);
-        let work = target.to_work();
-        let back = work.to_target();
+        let work = target.to_work().unwrap();
+        let back = work.to_target().unwrap();
         assert_eq!(back, target)
     }
 
@@ -801,6 +811,36 @@ mod tests {
         .expect("failed to calculate next target");
 
         // Should return the real_target from the walked-back header
+        assert_eq!(got, want);
+    }
+
+    // The min difficulty check must not overflow when the current header's time is close to
+    // `u32::MAX`.
+    #[test]
+    fn next_target_testnet_min_difficulty_time_near_max() {
+        let params = Params::TESTNET3;
+        let want = CompactTarget::from_consensus(0x1c00_ffff);
+
+        let header = Header {
+            version: crate::block::Version::from_consensus(0x2000_0000),
+            prev_blockhash: BlockHash::from_byte_array([1u8; 32]),
+            merkle_root: crate::TxMerkleNode::from_byte_array([2u8; 32]),
+            time: 0xFFFF_FF00.into(),
+            bits: want,
+            nonce: 0,
+        };
+
+        fn fetch_header(_height: BlockHeight) -> Result<Header, core::convert::Infallible> {
+            unreachable!("fetcher should not be called when bits are not pow_limit");
+        }
+
+        let height = BlockHeight::from_u32(100); // non-retarget height
+
+        // New block timestamp is less than 20 minutes after the current header.
+        let new_block_timestamp = Some(u32::MAX);
+
+        let got = next_target_after(header, height, &params, new_block_timestamp, fetch_header)
+            .expect("failed to calculate next target");
         assert_eq!(got, want);
     }
 }

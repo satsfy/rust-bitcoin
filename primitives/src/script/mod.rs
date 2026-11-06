@@ -50,7 +50,7 @@ pub use self::{
     builder::Builder,
     owned::{ScriptBuf, ScriptBufDecoder},
     push_bytes::{PushBytes, PushBytesBuf, PushBytesErrorReport},
-    tag::{Tag, RedeemScriptTag, ScriptPubKeyTag, ScriptSigTag, SignetBlockScriptTag, TapScriptTag, WitnessScriptTag},
+    tag::{Tag, RedeemScriptTag, ScriptPubKeyTag, ScriptSigTag, SignetBlockScriptTag, TaprootLeafTag, TapScriptTag, WitnessScriptTag, ScriptCodeTag},
 };
 #[doc(no_inline)]
 pub use self::error::{
@@ -91,20 +91,46 @@ pub type SignetBlockScriptBuf = ScriptBuf<SignetBlockScriptTag>;
 pub type SignetBlockScript = Script<SignetBlockScriptTag>;
 
 /// A Segwit v1 Taproot script.
+pub type TaprootLeafBuf = ScriptBuf<TaprootLeafTag>;
+
+/// A reference to a Segwit v1 Taproot leaf script of any version.
+pub type TaprootLeaf = Script<TaprootLeafTag>;
+
+/// A Segwit v1 Taproot script.
 pub type TapScriptBuf = ScriptBuf<TapScriptTag>;
 
-/// A reference to a Segwit v1 Taproot script.
+/// A reference to a Segwit v1 Taproot leaf script of version 0xc0, the Tapscript.
 pub type TapScript = Script<TapScriptTag>;
 
-/// A Segwit v0 witness script.
+/// A SegWit v0 witness script.
 pub type WitnessScriptBuf = ScriptBuf<WitnessScriptTag>;
 
-/// A reference to a Segwit v0 witness script.
+/// A reference to a SegWit v0 witness script.
 pub type WitnessScript = Script<WitnessScriptTag>;
+
+/// A reference to a script code (scriptCode) used in sighash computation.
+///
+/// Used for legacy and SegWit v0 signature hashing. The `AsRef` implementations on
+/// [`WitnessScript`], [`RedeemScript`], [`ScriptPubKey`], and their owned `Buf` variants
+/// borrow the entire script.
+///
+/// # `OP_CODESEPARATOR`
+///
+/// The caller must remove everything up to and including the last **executed**
+/// `OP_CODESEPARATOR` before the signature checking opcode. If no
+/// `OP_CODESEPARATOR` has executed, no prefix is removed.
+///
+/// For SegWit v0, all `OP_CODESEPARATOR` instructions in the remaining script are
+/// kept, including those in unexecuted branches (see [BIP-0143]). For legacy
+/// signature hashing, the remaining `OP_CODESEPARATOR` instructions are removed
+/// when encoding the signing data.
+///
+/// [BIP-0143]: <https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki>
+pub type ScriptCode = Script<ScriptCodeTag>;
 
 /// The maximum allowed redeem script size for a P2SH output.
 pub const MAX_REDEEM_SCRIPT_SIZE: usize = 520;
-/// The maximum allowed redeem script size of the witness script.
+/// The maximum allowed size of a witness script.
 pub const MAX_WITNESS_SCRIPT_SIZE: usize = 10_000;
 
 /// The P2A program which is given by 0x4e73.
@@ -127,15 +153,15 @@ pub(crate) fn new_witness_program_unchecked<T: AsRef<PushBytes>, Tg>(
     Builder::new().push_opcode(version.into()).push_slice(program).into_script()
 }
 
-/// Either a redeem script or a Segwit version 0 scriptpubkey.
+/// Either a redeem script or a SegWit version 0 scriptpubkey.
 ///
-/// In the case of P2SH-wrapped Segwit version outputs, we take a Segwit scriptPubKey
+/// In the case of P2SH-wrapped SegWit version outputs, we take a SegWit scriptPubKey
 /// and put it in a redeem script slot. The Bitcoin script interpreter has special
 /// logic to handle this case, which is reflected in our API in several methods
 /// relating to P2SH and signature hashing. These methods take either a normal
-/// P2SH redeem script, or a Segwit version 0 scriptpubkey.
+/// P2SH redeem script, or a SegWit version 0 scriptpubkey.
 ///
-/// Segwit version 1 (Taproot) and higher do **not** support P2SH-wrapping, and hashing
+/// SegWit version 1 (Taproot) and higher do **not** support P2SH-wrapping, and hashing
 /// such a script with [`ScriptHash::from_script`] returns an error.
 pub trait ScriptHashableTag: sealed::Sealed {}
 
@@ -202,6 +228,61 @@ impl TryFrom<&WitnessScript> for WScriptHash {
     }
 }
 
+impl AsRef<TaprootLeaf> for TapScript {
+    fn as_ref(&self) -> &TaprootLeaf {
+        TaprootLeaf::from_bytes(self.as_bytes())
+    }
+}
+
+impl AsRef<TaprootLeaf> for TapScriptBuf {
+    fn as_ref(&self) -> &TaprootLeaf {
+        TaprootLeaf::from_bytes(self.as_bytes())
+    }
+}
+
+impl From<TapScriptBuf> for TaprootLeafBuf {
+    fn from(value: TapScriptBuf) -> Self {
+        Self::from_bytes(value.into_bytes())
+    }
+}
+
+/// Borrows the entire witness script as `ScriptCode`.
+impl AsRef<ScriptCode> for WitnessScript {
+    fn as_ref(&self) -> &ScriptCode { ScriptCode::from_bytes(self.as_bytes()) }
+}
+
+impl AsRef<ScriptCode> for WitnessScriptBuf {
+    #[inline]
+    fn as_ref(&self) -> &ScriptCode {
+        let witness_script: &WitnessScript = self.as_script();
+        witness_script.as_ref()
+    }
+}
+
+/// Borrows the entire redeem script as `ScriptCode`.
+impl AsRef<ScriptCode> for RedeemScript {
+    fn as_ref(&self) -> &ScriptCode { ScriptCode::from_bytes(self.as_bytes()) }
+}
+
+impl AsRef<ScriptCode> for RedeemScriptBuf {
+    fn as_ref(&self) -> &ScriptCode {
+        let redeem_script: &RedeemScript = self.as_script();
+        redeem_script.as_ref()
+    }
+}
+
+/// Borrows the entire script pubkey as `ScriptCode`.
+impl AsRef<ScriptCode> for ScriptPubKey {
+    fn as_ref(&self) -> &ScriptCode { ScriptCode::from_bytes(self.as_bytes()) }
+}
+
+impl AsRef<ScriptCode> for ScriptPubKeyBuf {
+    fn as_ref(&self) -> &ScriptCode {
+        let script_pub_key: &ScriptPubKey = self.as_script();
+        script_pub_key.as_ref()
+    }
+}
+
 impl From<WitnessScriptBuf> for SignetBlockScriptBuf {
     #[inline]
     fn from(buf: WitnessScriptBuf) -> Self { Self::from_bytes(buf.into_bytes()) }
@@ -254,7 +335,6 @@ impl<'a, T> From<&'a Script<T>> for Cow<'a, Script<T>> {
     fn from(value: &'a Script<T>) -> Self { Cow::Borrowed(value) }
 }
 
-/// Note: This will fail to compile on old Rust for targets that don't support atomics
 #[cfg(target_has_atomic = "ptr")]
 impl<'a, T> From<&'a Script<T>> for Arc<Script<T>> {
     #[inline]
@@ -335,13 +415,11 @@ impl<T> fmt::Display for Script<T> {
         macro_rules! read_push_data_len {
             ($iter:expr, $size:path, $formatter:expr) => {
                 match script::read_push_data_len($iter, $size) {
-                    Ok(n) => {
-                        match usize::try_from(n) {
-                            Ok(n) => n,
-                            Err(_) => {
-                                $formatter.write_str("<push past end>")?;
-                                break;
-                            }
+                    Ok(n) => match usize::try_from(n) {
+                        Ok(n) => n,
+                        Err(_) => {
+                            $formatter.write_str("<push past end>")?;
+                            break;
                         }
                     },
                     Err(_) => {
