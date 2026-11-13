@@ -3,6 +3,7 @@ on:   # yamllint disable-line rule:truthy
   push:
     branches:
       - master
+      - ci-test-prune
   pull_request:
 
 name: Continuous integration
