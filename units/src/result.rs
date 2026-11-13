@@ -523,12 +523,13 @@ pub mod error {
         }
     }
 
-    #[cfg(feature = "std")]
-    impl std::error::Error for NumOpError {
-        #[inline]
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            let Self(_) = self;
-            None
+    internals::impl_std_error! {
+        impl Error for NumOpError {
+            #[inline]
+            fn source(&self) -> Option<&(dyn Error + 'static)> {
+                let Self(_) = self;
+                None
+            }
         }
     }
 }

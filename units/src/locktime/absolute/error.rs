@@ -75,12 +75,13 @@ impl fmt::Display for IncompatibleHeightError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for IncompatibleHeightError {
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        let Self { lock: _, incompatible: _ } = self;
-        None
+internals::impl_std_error! {
+    impl Error for IncompatibleHeightError {
+        #[inline]
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            let Self { lock: _, incompatible: _ } = self;
+            None
+        }
     }
 }
 
@@ -119,12 +120,13 @@ impl fmt::Display for IncompatibleTimeError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for IncompatibleTimeError {
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        let Self { lock: _, incompatible: _ } = self;
-        None
+internals::impl_std_error! {
+    impl Error for IncompatibleTimeError {
+        #[inline]
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            let Self { lock: _, incompatible: _ } = self;
+            None
+        }
     }
 }
 
@@ -144,11 +146,12 @@ impl fmt::Display for ParseHeightError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ParseHeightError {
-    // To be consistent with `write_err` we need to **not** return source if overflow occurred
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { self.0.source() }
+internals::impl_std_error! {
+    impl Error for ParseHeightError {
+        // To be consistent with `write_err` we need to **not** return source if overflow occurred
+        #[inline]
+        fn source(&self) -> Option<&(dyn Error + 'static)> { self.0.source() }
+    }
 }
 
 impl From<ParseError> for ParseHeightError {
@@ -172,11 +175,12 @@ impl fmt::Display for ParseTimeError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ParseTimeError {
-    // To be consistent with `write_err` we need to **not** return source if overflow occurred
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { self.0.source() }
+internals::impl_std_error! {
+    impl Error for ParseTimeError {
+        // To be consistent with `write_err` we need to **not** return source if overflow occurred
+        #[inline]
+        fn source(&self) -> Option<&(dyn Error + 'static)> { self.0.source() }
+    }
 }
 
 impl From<ParseError> for ParseTimeError {
@@ -280,24 +284,27 @@ impl ParseError {
             }
         }
     }
+}
 
-    // To be consistent with `write_err` we need to **not** return source if overflow occurred
-    #[inline]
-    #[cfg(feature = "std")]
-    pub(super) fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use core::num::IntErrorKind;
+internals::impl_std_error! {
+    impl ParseError {
+        // To be consistent with `write_err` we need to **not** return source if overflow occurred
+        #[inline]
+        pub(super) fn source(&self) -> Option<&(dyn Error + 'static)> {
+            use core::num::IntErrorKind;
 
-        match self {
-            Self::PrefixedHex(ref err) => Some(err),
-            Self::UnprefixedHex(ref err) => Some(err),
-            Self::ParseInt(ParseIntError { source, .. })
-                if *source.kind() == IntErrorKind::PosOverflow =>
-                None,
-            Self::ParseInt(ParseIntError { source, .. })
-                if *source.kind() == IntErrorKind::NegOverflow =>
-                None,
-            Self::ParseInt(ParseIntError { source, .. }) => Some(source),
-            Self::Conversion(_) => None,
+            match self {
+                Self::PrefixedHex(ref err) => Some(err),
+                Self::UnprefixedHex(ref err) => Some(err),
+                Self::ParseInt(ParseIntError { source, .. })
+                    if *source.kind() == IntErrorKind::PosOverflow =>
+                    None,
+                Self::ParseInt(ParseIntError { source, .. })
+                    if *source.kind() == IntErrorKind::NegOverflow =>
+                    None,
+                Self::ParseInt(ParseIntError { source, .. }) => Some(source),
+                Self::Conversion(_) => None,
+            }
         }
     }
 }
@@ -358,12 +365,13 @@ impl fmt::Display for ConversionError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ConversionError {
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        let Self { unit: _, input: _ } = self;
-        None
+internals::impl_std_error! {
+    impl Error for ConversionError {
+        #[inline]
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            let Self { unit: _, input: _ } = self;
+            None
+        }
     }
 }
 
