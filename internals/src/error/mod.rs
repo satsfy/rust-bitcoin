@@ -26,6 +26,43 @@ pub trait ErrorExt: std::error::Error + 'static {
 #[cfg(feature = "std")]
 impl<T: std::error::Error + 'static> ErrorExt for T {}
 
+#[doc(hidden)]
+/// Probe telling `write_err` whether `T` implements `core::error::Error`.
+///
+/// The inherent `implements_error` is picked when `T` implements the trait, otherwise method
+/// resolution falls back to [`NotError::implements_error`].
+pub struct IsError<T: ?Sized>(core::marker::PhantomData<T>);
+
+impl<T: ?Sized> IsError<T> {
+    /// Constructs the probe for a type.
+    #[inline]
+    pub const fn of_type() -> Self { Self(core::marker::PhantomData) }
+
+    /// Constructs the probe for the type of a value.
+    #[inline]
+    pub const fn of_value(_: &T) -> Self { Self(core::marker::PhantomData) }
+}
+
+crate::rust_version::rust_version! {
+    if >= 1.81 {
+        impl<T: ?Sized + core::error::Error> IsError<T> {
+            /// Returns `true`, `T` implements `core::error::Error`.
+            #[inline]
+            pub const fn implements_error(&self) -> bool { true }
+        }
+    }
+}
+
+#[doc(hidden)]
+/// Fallback of [`IsError`] for types that do not implement `core::error::Error`.
+pub trait NotError {
+    /// Returns `false`, the type does not implement `core::error::Error`.
+    #[inline]
+    fn implements_error(&self) -> bool { false }
+}
+
+impl<T: ?Sized> NotError for IsError<T> {}
+
 /// Implements the `Error` trait for an error type.
 ///
 /// On Rust 1.81 and later this implements `core::error::Error`, with or without the `std` feature.
@@ -89,6 +126,10 @@ macro_rules! impl_std_error {
 /// `e.source()` is only available in std builds, without this macro the error source is lost for
 /// no-std builds.
 ///
+/// On Rust 1.81 and later the source is not appended in no-std builds either if both `Self` and
+/// the source implement `core::error::Error`, because then the source is returned by
+/// `Self::source()`. The macro must be called from an impl of the error type for that reason.
+///
 /// Note: will not compile on std if $source doesn't implement [`std::error::Error`]. This is
 /// intentional because if it doesn't the macro MUST NOT be used. However this check is very rarely
 /// imprecise so if you know what you're doing you can use the unchecked version.
@@ -111,7 +152,24 @@ macro_rules! write_err {
             }
             #[cfg(not(feature = "std"))]
             {
-                write!($writer, concat!($string, ": {}") $(, $args)*, $source)
+                $crate::rust_version::rust_version! {
+                    if >= 1.81 {
+                        {
+                            #[allow(unused_imports)]
+                            use $crate::error::NotError as _;
+
+                            if $crate::error::IsError::<Self>::of_type().implements_error()
+                                && $crate::error::IsError::of_value(&$source).implements_error()
+                            {
+                                write!($writer, $string $(, $args)*)
+                            } else {
+                                write!($writer, concat!($string, ": {}") $(, $args)*, $source)
+                            }
+                        }
+                    } else {
+                        write!($writer, concat!($string, ": {}") $(, $args)*, $source)
+                    }
+                }
             }
         }
     }
@@ -164,13 +222,65 @@ mod tests {
     struct Wrapper(Leaf);
 
     impl fmt::Display for Wrapper {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { f.write_str("wrapper") }
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write_err!(f, "wrapper"; self.0) }
     }
 
     impl_std_error! {
         impl Error for Wrapper {
             fn source(&self) -> Option<&(dyn Error + 'static)> { Some(&self.0) }
         }
+    }
+
+    /// An error that implements the trait only with `std`, as before `impl_std_error`.
+    #[derive(Debug)]
+    struct StdOnly(Leaf);
+
+    impl fmt::Display for StdOnly {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write_err!(f, "std only"; self.0) }
+    }
+
+    #[cfg(feature = "std")]
+    impl std::error::Error for StdOnly {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { Some(&self.0) }
+    }
+
+    /// Checks the `Display` output without allocating.
+    struct Expect<'a>(&'a str);
+
+    impl fmt::Write for Expect<'_> {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            self.0 = self.0.strip_prefix(s).ok_or(fmt::Error)?;
+            Ok(())
+        }
+    }
+
+    #[track_caller]
+    fn assert_display(value: &dyn fmt::Display, expected: &str) {
+        use fmt::Write as _;
+
+        let mut expect = Expect(expected);
+        assert!(write!(expect, "{}", value).is_ok() && expect.0.is_empty());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn write_err_omits_source_with_std() {
+        assert_display(&Wrapper(Leaf), "wrapper");
+        assert_display(&StdOnly(Leaf), "std only");
+    }
+
+    #[test]
+    #[cfg(not(feature = "std"))]
+    fn write_err_without_std() {
+        crate::rust_version::rust_version! {
+            if >= 1.81 {
+                // The source is reachable through `source()`.
+                assert_display(&Wrapper(Leaf), "wrapper");
+            } else {
+                assert_display(&Wrapper(Leaf), "wrapper: leaf");
+            }
+        }
+        assert_display(&StdOnly(Leaf), "std only: leaf");
     }
 
     #[test]
